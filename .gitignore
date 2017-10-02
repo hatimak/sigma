@@ -1,0 +1,7 @@
+# backup files
+*~
+*.swp
+*.orig
+*.bak
+\#*\#
+
