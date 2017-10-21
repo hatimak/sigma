@@ -4,4 +4,8 @@
 *.orig
 *.bak
 \#*\#
+*.vcd
+*.out
+*.o
+.DS_Store
 
