@@ -12,6 +12,10 @@ fpu: fpu.v $(FPU_SRC)
 	$(CC) -o fpu.out fpu.v $(FPU_SRC)
 	vvp fpu.out
 
+matrix_add: matrix_add.v ../../src/verilog/matrix/matrix_add.v $(FPU_SRC)
+	$(CC) -o matrix_add.out matrix_add.v ../../src/verilog/matrix/matrix_add.v $(FPU_SRC)
+	vvp matrix_add.out
+
 .PHONY: clean
 
 clean:
