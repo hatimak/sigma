@@ -14,37 +14,54 @@ module matrix_mul #(parameter SIZE = 4) (
     localparam S_K    = 2'b11;
     localparam FPU_OP_ADD = 3'b000;
     localparam FPU_OP_MUL = 3'b010;
+    parameter  ROUND_MODE = 2'b00;
 
     reg [1:0] state;
     reg [7:0] i, j, k;
     reg       ack;
 
-    reg [2:0]   fpu_op;
-    reg         enable_op;
-    reg [63:0]  fpu_opa, fpu_opb;
-    wire [63:0] fpu_out;
-    wire        fpu_ready, fpu_underflow, fpu_overflow, fpu_inexact, fpu_exception, fpu_invalid;
+    reg         enable_op_mul, enable_op_add;
+    reg [63:0]  fpu_mul_opa, fpu_mul_opb, fpu_add_opa, fpu_add_opb, op_sum;
+    wire [63:0] fpu_mul_out, fpu_add_out;
+    wire        fpu_mul_ready, fpu_mul_underflow, fpu_mul_overflow, fpu_mul_inexact, fpu_mul_exception, fpu_mul_invalid;
+    wire        fpu_add_ready, fpu_add_underflow, fpu_add_overflow, fpu_add_inexact, fpu_add_exception, fpu_add_invalid;
 
-    fpu fpu (
+    fpu fpu_mul (
         .clk       (clk),
         .rst       (rst),
-        .enable    (enable_op),
-        .rmode     (2'b00),
-        .fpu_op    (fpu_op),
-        .opa       (fpu_opa),
-        .opb       (fpu_opb),
-        .out       (fpu_out),
-        .ready     (fpu_ready),
-        .underflow (fpu_underflow),
-        .overflow  (fpu_overflow),
-        .inexact   (fpu_inexact),
-        .exception (fpu_exception),
-        .invalid   (fpu_invalid)
+        .enable    (enable_op_mul),
+        .rmode     (ROUND_MODE),
+        .fpu_op    (FPU_OP_MUL),
+        .opa       (fpu_mul_opa),
+        .opb       (fpu_mul_opb),
+        .out       (fpu_mul_out),
+        .ready     (fpu_mul_ready),
+        .underflow (fpu_mul_underflow),
+        .overflow  (fpu_mul_overflow),
+        .inexact   (fpu_mul_inexact),
+        .exception (fpu_mul_exception),
+        .invalid   (fpu_mul_invalid)
+        );
+
+    fpu fpu_add (
+        .clk       (clk),
+        .rst       (rst),
+        .enable    (enable_op_add),
+        .rmode     (ROUND_MODE),
+        .fpu_op    (FPU_OP_ADD),
+        .opa       (fpu_add_opa),
+        .opb       (fpu_add_opb),
+        .out       (fpu_add_out),
+        .ready     (fpu_add_ready),
+        .underflow (fpu_add_underflow),
+        .overflow  (fpu_add_overflow),
+        .inexact   (fpu_add_inexact),
+        .exception (fpu_add_exception),
+        .invalid   (fpu_add_invalid)
         );
 
     always @(posedge clk) begin
         if (rst) begin
-            // Do initialisations.
             state <= S_IDLE;
             i <= 0;
             j <= 0;
@@ -52,6 +69,13 @@ module matrix_mul #(parameter SIZE = 4) (
             ack <= 0;
             prod <= 0;
             ready <= 0;
+            enable_op_mul <= 0;
+            fpu_mul_opa <= 0;
+            fpu_mul_opb <= 0;
+            enable_op_add <= 0;
+            fpu_add_opa <= 0;
+            fpu_add_opb <= 0;
+            op_sum <= 0;
         end else begin
             case (state)
                 S_IDLE: begin
