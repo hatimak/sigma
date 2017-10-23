@@ -11,7 +11,6 @@ module matrix_mul #(parameter SIZE = 4) (
     localparam S_IDLE = 2'b00;
     localparam S_I    = 2'b01;
     localparam S_J    = 2'b10;
-    localparam S_K    = 2'b11;
     localparam FPU_OP_ADD = 3'b000;
     localparam FPU_OP_MUL = 3'b010;
     parameter  ROUND_MODE = 2'b00;
@@ -20,8 +19,8 @@ module matrix_mul #(parameter SIZE = 4) (
     reg [7:0] i, j, k;
     reg       ack;
 
-    reg         enable_op_mul, enable_op_add;
-    reg [63:0]  fpu_mul_opa, fpu_mul_opb, fpu_add_opa, fpu_add_opb, op_sum;
+    reg         enable_op_mul, enable_op_add, op_trigger;
+    reg [63:0]  fpu_mul_opa, fpu_mul_opb, fpu_add_opa, fpu_add_opb, op_sum, op_prod;
     wire [63:0] fpu_mul_out, fpu_add_out;
     wire        fpu_mul_ready, fpu_mul_underflow, fpu_mul_overflow, fpu_mul_inexact, fpu_mul_exception, fpu_mul_invalid;
     wire        fpu_add_ready, fpu_add_underflow, fpu_add_overflow, fpu_add_inexact, fpu_add_exception, fpu_add_invalid;
@@ -65,8 +64,6 @@ module matrix_mul #(parameter SIZE = 4) (
             state <= S_IDLE;
             i <= 0;
             j <= 0;
-            k <= 0;
-            ack <= 0;
             prod <= 0;
             ready <= 0;
             enable_op_mul <= 0;
@@ -75,21 +72,25 @@ module matrix_mul #(parameter SIZE = 4) (
             enable_op_add <= 0;
             fpu_add_opa <= 0;
             fpu_add_opb <= 0;
-            op_sum <= 0;
+            op_trigger <= 0;
         end else begin
             case (state)
                 S_IDLE: begin
                     if (enable) begin
                         i <= 0;
                         j <= 0;
-                        k <= 0;
                         ready <= 1'b0;
-                        state <= S_K;
+                        state <= S_J;
+                        op_trigger <= 1'b1;
+                    end else begin
+                        state <= S_IDLE;
                     end
                 end
                 S_I: begin
-                    if (i < SIZE) begin
+                    if (i < (SIZE - 1)) begin
+                        i <= i + 1;
                         j <= 0;
+                        op_trigger <= 1'b1; // op_trigger is guranteed to be low prior to raising here.
                         state <= S_J;
                     end else begin
                         state <= S_IDLE;
@@ -97,23 +98,15 @@ module matrix_mul #(parameter SIZE = 4) (
                     end
                 end
                 S_J: begin
-                    if (j < SIZE) begin
-                        k <= 0;
-                        state <= S_K;
-                    end else begin
-                        i <= i + 1;
-                        state <= S_I;
-                    end
-                end
-                S_K: begin
                     if (!ack) begin
-                        state <= S_K;
-                    end else if (ack && k < SIZE) begin
-                        state <= S_K;
-                        k <= k + 1;
-                    end else if (ack && k >= SIZE) begin
-                        j <= j + 1;
                         state <= S_J;
+                        op_trigger <= 1'b0; // Multiply and accumulate operation takes multiple cycles so op_trigger can be safely lowered here.
+                    end else if (ack && j < (SIZE - 1)) begin
+                        state <= S_J;
+                        j <= j + 1;
+                        op_trigger <= 1'b1;
+                    end else if (ack && j >= (SIZE - 1)) begin
+                        state <= S_I;
                     end
                 end
             endcase
