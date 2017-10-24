@@ -1,0 +1,28 @@
+CAPI=1
+
+[main]
+name = ::sigma:0
+simulators = icarus
+
+[fileset rtl]
+files =
+ src/verilog/fpu/fpu_add.v
+ src/verilog/fpu/fpu_div.v
+ src/verilog/fpu/fpu_double.v
+ src/verilog/fpu/fpu_exceptions.v
+ src/verilog/fpu/fpu_mul.v
+ src/verilog/fpu/fpu_round.v
+ src/verilog/fpu/fpu_sub.v
+ src/verilog/matrix/matrix_add.v
+ src/verilog/matrix/matrix_mul.v
+file_type = verilogSource
+
+[fileset tb]
+files =
+ test/iverilog/fpu.v
+ test/iverilog/matrix_add.v
+file_type = verilogSource
+usage = sim
+
+[simulator]
+toplevel = fpu_tb
