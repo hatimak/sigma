@@ -10,4 +10,5 @@
 .DS_Store
 build
 fusesoc.log
+ieee754
 
