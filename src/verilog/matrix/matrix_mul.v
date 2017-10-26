@@ -16,16 +16,62 @@ module matrix_mul #(parameter SIZE = 4) (
     localparam MASK    = ((1 << 64) - 1);
     localparam ROUND   = 2'b00; // Nearest even.
     localparam FPU_ADD = 3'b000;
+    localparam FPU_MUL = 3'b010;
 
-    reg [7:0]                   i, j, k; // 8-bit wide i, j, k should limit SIZE to a maximum of 256.
-    reg [2:0]                   state;
-    reg                         mac_start, add_en;
-    reg [63:0]                  add_opa, add_opb, tmp_sum;
-    wire [63:0]                 add_out;
-    wire                        add_ready;
-    reg [2:0]                   add_en_timer;
-    reg [SIZE*SIZE*64-1:0]      select;
-    reg [SIZE*SIZE*SIZE*64-1:0] trans_prod;
+    reg [7:0]                    i, j, k; // 8-bit wide i, j, k should limit SIZE to a maximum of 256.
+    reg [2:0]                    state;
+    reg                          add_en;
+    reg [63:0]                   add_opa, add_opb, tmp_sum;
+    wire [63:0]                  add_out;
+    wire                         add_ready, mul_done, mul_done_d, mac_start;
+    reg [3:0]                    shift_mul_done;
+    reg [2:0]                    add_en_timer;
+    reg [SIZE*SIZE*64-1:0]       select;
+    wire [SIZE*SIZE*SIZE*64-1:0] trans_prod;
+    wire [SIZE*SIZE*SIZE-1:0]    mul_ready;
+
+    generate
+        genvar l, m, n;
+        for (l = 0; l < SIZE; l = l + 1) begin
+            for (m = 0; m < SIZE; m = m + 1) begin
+                for (n = 0; n < SIZE; n = n + 1) begin
+                    localparam INDA = ((l*SIZE + n)*64);
+                    localparam INDB = ((n*SIZE + m)*64);
+                    localparam INDO = ((l*SIZE*SIZE + m*SIZE + n)*64);
+                    localparam INDR = (l*SIZE*SIZE + m*SIZE + n);
+                    fpu fpu_mul (
+                        .clk       (clk),
+                        .rst       (rst),
+                        .enable    (enable),
+                        .rmode     (ROUND),
+                        .fpu_op    (FPU_MUL),
+                        .opa       (op_a[INDA+63:INDA]),
+                        .opb       (op_b[INDB+63:INDB]),
+                        .out       (trans_prod[INDO+63:INDO]),
+                        .ready     (mul_ready[INDR]),
+                        .underflow (),
+                        .overflow  (),
+                        .inexact   (),
+                        .exception (),
+                        .invalid   ()
+                        );
+                end
+            end
+        end
+    endgenerate
+
+    assign mul_done = &mul_ready;
+
+    always @(posedge clk) begin
+        if (rst) begin
+            shift_mul_done <= 0;
+        end else begin
+            shift_mul_done <= {shift_mul_done[2:0], mul_done};
+        end
+    end
+
+    assign mul_done_d = shift_mul_done[3];
+    assign mac_start = mul_done & ~mul_done_d;
 
     fpu fpu_add (
     .clk       (clk),
