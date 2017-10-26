@@ -21,6 +21,7 @@ file_type = verilogSource
 files =
  test/iverilog/fpu.v
  test/iverilog/matrix_add.v
+ test/iverilog/matrix_mul.v
 file_type = verilogSource
 usage = sim
 

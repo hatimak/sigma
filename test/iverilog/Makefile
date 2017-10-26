@@ -16,7 +16,11 @@ matrix_add: matrix_add.v ../../src/verilog/matrix/matrix_add.v $(FPU_SRC)
 	$(CC) -o matrix_add.out matrix_add.v ../../src/verilog/matrix/matrix_add.v $(FPU_SRC)
 	vvp matrix_add.out
 
+matrix_mul: matrix_mul.v ../../src/verilog/matrix/matrix_mul.v $(FPU_SRC)
+	$(CC) -o matrix_mul.out matrix_mul.v ../../src/verilog/matrix/matrix_mul.v $(FPU_SRC)
+	vvp matrix_mul.out
+
 .PHONY: clean
 
 clean:
-	rm -rf *.out *.vcd
+	rm -rf *.out *.vcd *.log
