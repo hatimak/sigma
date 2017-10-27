@@ -15,6 +15,7 @@ files =
  src/verilog/fpu/fpu_sub.v
  src/verilog/matrix/matrix_add.v
  src/verilog/matrix/matrix_mul.v
+ src/verilog/ancillary/sqrt.v
 file_type = verilogSource
 
 [fileset tb]
@@ -22,6 +23,7 @@ files =
  test/iverilog/fpu.v
  test/iverilog/matrix_add.v
  test/iverilog/matrix_mul.v
+ test/iverilog/sqrt.v
 file_type = verilogSource
 usage = sim
 

@@ -20,6 +20,10 @@ matrix_mul: matrix_mul.v ../../src/verilog/matrix/matrix_mul.v $(FPU_SRC)
 	$(CC) -o matrix_mul.out matrix_mul.v ../../src/verilog/matrix/matrix_mul.v $(FPU_SRC)
 	vvp matrix_mul.out
 
+sqrt: sqrt.v ../../src/verilog/ancillary/sqrt.v $(FPU_SRC)
+	$(CC) -o sqrt.out sqrt.v ../../src/verilog/ancillary/sqrt.v $(FPU_SRC)
+	vvp sqrt.out
+
 .PHONY: clean
 
 clean:
