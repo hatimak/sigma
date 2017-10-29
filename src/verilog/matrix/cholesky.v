@@ -20,9 +20,25 @@ module cholesky #(parameter SIZE = 4) (
 
     localparam ROUND      = 2'b00; // Nearest even.
     localparam FPU_OP_DIV = 3'b011;
+    localparam FPU_OP_MUL = 3'b010;
+    localparam FPU_OP_ADD = 3'b000;
+    localparam TMR_LOAD   = 3'b011;
 
-    wire        sqrt_ready_a11, en_trav;
-    wire [63:0] sqrt_y_a11;
+    // State declarations for Traversal machine.
+    localparam S_T_IDLE   = 2'b00;
+    localparam S_T_ROUTE  = 2'b01;
+    localparam S_T_I2     = 2'b11;
+
+    wire            sqrt_ready_a11, en_trav, ready_li2;
+    wire [63:0]     sqrt_y_a11;
+    wire [SIZE-2:0] fpu_i1_ready;
+    // Since SIZE is at least 2, keep an additional bit (MSB) which will remain unused.
+    // For SIZE=2, compute array for l_i,2 (i > 2) is NOT triggered.
+    wire [SIZE-2:0] fpu_mul_i2_ready, fpu_add_i2_ready, fpu_div_i2_ready;
+    wire [((SIZE-1)*64)-1:0] fpu_mul_i2_out, fpu_add_i2_out; // Keep an additional vector (MSB).
+    reg [1:0]       state_trav;
+    reg             en_i2;
+    reg [2:0]       tmr_i2;
 
     sqrt sqrt_a11 (
         .y      (sqrt_y_a11), // a_11
@@ -47,8 +63,8 @@ module cholesky #(parameter SIZE = 4) (
                 .fpu_op    (FPU_OP_DIV),
                 .opa       (matrix[IND_I1+63:IND_I1]), // a_i,1
                 .opb       (sqrt_y_a11), // sqrt(a_11)
-                .out       (factor[IND_I1+63:IND_I1]),
-                .ready     (en_trav),
+                .out       (factor[IND_I1+63:IND_I1]), // l_i,1
+                .ready     (fpu_i1_ready[i1-1]),
                 .underflow (),
                 .overflow  (),
                 .inexact   (),
@@ -57,6 +73,104 @@ module cholesky #(parameter SIZE = 4) (
                 );
         end
     endgenerate
+
+    assign en_trav = &fpu_i1_ready;
+
+    // Traversal machine, triggered by en_trav.
+    always @(posedge clk or negedge clk) begin
+        if (rst && clk) begin
+            // Do initialisations.
+            state_trav <= S_T_IDLE;
+            en_i2 <= 0;
+            tmr_i2 <= 0;
+        end else if (!rst && clk) begin
+            case (state_trav)
+                S_T_IDLE: begin
+                    if (en_trav) begin
+                        // Depending on size, check whether computations are needed. If size permits, 
+                        // trigger array for l_i,2 (for i > 2) computaion using en_i2 and tmr_ir, 
+                        // and wait (S_T_I2).
+                    end else begin
+                        state_trav <= S_T_IDLE;
+                    end
+                end
+                S_T_ROUTE: begin
+                    // Increment indices for factor matrix, route triggers to diagonal or off-diagonal 
+                    // compute machines, decide whether end is reached, and wait while computes are busy.
+                end
+                S_T_I2: begin
+                    // Wait for l_i,2 compute array to finish and when done move to S_T_ROUTE.
+                end
+            endcase
+        end else if (!rst && !clk) begin
+            // Manage timers and enable triggers.
+        end
+    end
+
+    generate
+        genvar i2;
+        for (i2 = 2; i2 < SIZE; i2 = i2 + 1) begin
+            localparam IND_I2_MULA = (i2*SIZE*64);
+            localparam IND_I2_MULB = (SIZE*64);
+            localparam IND_I2_MULO = ((i2-2)*64);
+            localparam IND_I2_ADDA = ((i2*SIZE + 1)*64);
+            localparam IND_I2_ADDO = ((i2-2)*64);
+            localparam IND_I2_DIVB = ((SIZE + 1)*64);
+            localparam IND_I2_DIVO = ((i2*SIZE + 1)*64);
+            fpu fpu_mul_i2 (
+                .clk       (clk),
+                .rst       (rst),
+                .enable    (en_i2),
+                .rmode     (ROUND),
+                .fpu_op    (FPU_OP_MUL),
+                .opa       (factor[IND_I2_MULA+63:IND_I2_MULA]), // l_i,1
+                .opb       (factor[IND_I2_MULB+63:IND_I2_MULB]), // l_21
+                .out       (fpu_mul_i2_out[IND_I2_MULO+63:IND_I2_MULO]), // l_21 * l_i,1
+                .ready     (fpu_mul_i2_ready[i2-2]),
+                .underflow (),
+                .overflow  (),
+                .inexact   (),
+                .exception (),
+                .invalid   ()
+                );
+
+            fpu fpu_add_i2 (
+                .clk       (clk),
+                .rst       (rst),
+                .enable    (fpu_mul_i2_ready[i2-2]),
+                .rmode     (ROUND),
+                .fpu_op    (FPU_OP_ADD),
+                .opa       (matrix[IND_I2_ADDA+63:IND_I2_ADDA]), // a_i,2
+                .opb       (fpu_mul_i2_out[IND_I2_MULO+63:IND_I2_MULO] | (1 << 63)), // -(l_21 * l_i,1)
+                .out       (fpu_add_i2_out[IND_I2_ADDO+63:IND_I2_ADDO]), // a_i,2 - l_21 * l_i,1
+                .ready     (fpu_add_i2_ready[i2-2]),
+                .underflow (),
+                .overflow  (),
+                .inexact   (),
+                .exception (),
+                .invalid   ()
+                );
+
+            fpu fpu_div_i2 (
+                .clk       (clk),
+                .rst       (rst),
+                .enable    (fpu_add_i2_ready[i2-2]),
+                .rmode     (ROUND),
+                .fpu_op    (FPU_OP_DIV),
+                .opa       (fpu_add_i2_out[IND_I2_ADDO+63:IND_I2_ADDO]), // a_i,2 - l_21 * l_i,1
+                .opb       (factor[IND_I2_DIVB+63:IND_I2_DIVB]), // l_22
+                .out       (factor[IND_I2_DIVO+63:IND_I2_DIVO]), // l_i,2 = (a_i,2 - l_21 * l_i,1) / l_22
+                .ready     (fpu_div_i2_ready[i2-2]),
+                .underflow (),
+                .overflow  (),
+                .inexact   (),
+                .exception (),
+                .invalid   ()
+                );
+        end
+    endgenerate
+
+    // Generate ready_li2 signal when all div_i2 are ready.
 
     assign factor[63:0] = sqrt_y_a11; // l_11 = sqrt(a_11)
 
