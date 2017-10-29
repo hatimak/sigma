@@ -23,6 +23,7 @@ module cholesky #(parameter SIZE = 4) (
     localparam FPU_OP_MUL = 3'b010;
     localparam FPU_OP_ADD = 3'b000;
     localparam TMR_LOAD   = 3'b011;
+    localparam MASK       = ((1 << 64) - 1);
 
     // State declarations for Traversal machine.
     localparam S_T_IDLE   = 2'b00;
@@ -37,8 +38,9 @@ module cholesky #(parameter SIZE = 4) (
     wire [SIZE-2:0]          fpu_mul_i2_ready, fpu_add_i2_ready, fpu_div_i2_ready;
     wire [((SIZE-1)*64)-1:0] fpu_mul_i2_out, fpu_add_i2_out; // Keep an additional vector (MSB).
     reg [1:0]                state_trav;
-    reg                      en_i2;
-    reg [2:0]                tmr_i2;
+    reg                      en_i2, ready_trav, en_diag, ready_diag, en_offdiag, ready_offdiag;
+    reg [2:0]                tmr_i2, tmr_diag, tmr_offdiag;
+    reg [7:0]                trav_i, trav_j; // 8-bit wide should limit SIZE to a maximum of 256.
 
     sqrt sqrt_a11 (
         .y      (factor[63:0]), // l_11 = sqrt(a_11)
@@ -127,13 +129,26 @@ module cholesky #(parameter SIZE = 4) (
             state_trav <= S_T_IDLE;
             en_i2 <= 0;
             tmr_i2 <= 0;
+            en_diag <= 0;
+            tmr_diag <= 0;
+            ready_trav <= 0;
+            trav_i <= 0;
+            trav_j <= 0;
         end else if (!rst && clk) begin
             case (state_trav)
                 S_T_IDLE: begin
                     if (en_trav) begin
                         // Depending on size, check whether computations are needed. If size permits, 
-                        // trigger array for l_i,2 (for i > 2) computaion using en_i2 and tmr_ir, 
+                        // trigger array for l_i,2 (for i > 2) computaion using en_i2 and tmr_i2, 
                         // and wait (S_T_I2).
+                        if (SIZE > 2) begin
+                            tmr_i2 <= TMR_LOAD;
+                            ready_trav <= 0;
+                            state_trav <= S_T_I2;
+                        end else begin // If SIZE = 2, all required computations are done by this time, so conclude.
+                            ready_trav <= 1;
+                            state_trav <= S_T_IDLE;
+                        end
                     end else begin
                         state_trav <= S_T_IDLE;
                     end
@@ -141,16 +156,74 @@ module cholesky #(parameter SIZE = 4) (
                 S_T_ROUTE: begin
                     // Increment indices for factor matrix, route triggers to diagonal or off-diagonal 
                     // compute machines, decide whether end is reached, and wait while computes are busy.
+                    // At a given time, only one of Diagonal or Off-diagonal machines are busy.
+                    if (ready_diag && tmr_diag == 0) begin // Diagonal machine is done with compute task.
+                        if (trav_i == SIZE-1 && trav_j == SIZE-1) begin
+                            // The last element l_ij of factor to be computed will always reside on the diagonal.
+                            ready_trav <= 1;
+                            state_trav <= S_T_IDLE;
+                        end else begin
+                            // The last element l_ij of any row to be computed will always reside on the diagonal 
+                            // so row index control is determined by Diagonal machine only.
+                            trav_i <= trav_i + 1;
+                            trav_j <= 2;
+                            tmr_offdiag <= TMR_LOAD;
+                            state_trav <= S_T_ROUTE;
+                        end
+                    end if (ready_offdiag && tmr_offdiag == 0) begin // Off-diagonal machine is done with compute task.
+                        if (trav_j == trav_i - 1) begin // If next element resides on diagonal, trigger Diagonal machine.
+                            tmr_diag <= TMR_LOAD;
+                        end else begin // Trigger Off-diagonal machine.
+                            tmr_offdiag <= TMR_LOAD;
+                        end
+                        trav_j <= trav_j + 1;
+                        state_trav <= S_T_ROUTE;
+                    end else begin
+                        state_trav <= S_T_ROUTE;
+                    end
                 end
                 S_T_I2: begin
-                    // Wait for l_i,2 compute array to finish and when done move to S_T_ROUTE.
+                    if (ready_li2 && tmr_i2 == 0) begin
+                        // Start computing l_ij from l_33 onwards.
+                        trav_i <= 2;
+                        trav_j <= 2;
+                        tmr_diag <= TMR_LOAD;
+                        state_trav <= S_T_ROUTE;
+                    end else begin
+                        state_trav <= S_T_I2;
+                    end
                 end
             endcase
         end else if (!rst && !clk) begin
             // Manage timers and enable triggers.
+            if (tmr_i2 != 0 && en_i2) begin
+                tmr_i2 <= tmr_i2 - 1;
+            end else if (tmr_i2 == 0 && en_i2) begin
+                en_i2 <= 0;
+            end else if (tmr_i2 != 0 && !en_i2) begin
+                en_i2 <= 1;
+            end
+            if (tmr_diag != 0 && en_diag) begin
+                tmr_diag <= tmr_diag - 1;
+            end else if (tmr_diag == 0 && en_diag) begin
+                en_diag <= 0;
+            end else if (tmr_diag != 0 && !en_diag) begin
+                en_diag <= 1;
+            end
+            if (tmr_offdiag != 0 && en_offdiag) begin
+                tmr_offdiag <= tmr_offdiag - 1;
+            end else if (tmr_offdiag == 0 && en_offdiag) begin
+                en_offdiag <= 0;
+            end else if (tmr_offdiag != 0 && !en_offdiag) begin
+                en_offdiag <= 1;
+            end
         end
     end
 
+    assign ready = sqrt_22_ready & ready_trav;
+
+    // Array for l_i,2 computation (i > 2).
+    // l_i,2 = (a_i,2 - l_21 * l_i,1) / l_22
     generate
         genvar i2;
         for (i2 = 2; i2 < SIZE; i2 = i2 + 1) begin
@@ -215,7 +288,7 @@ module cholesky #(parameter SIZE = 4) (
     endgenerate
 
     assign fpu_div_i2_ready[SIZE-2] = 1'b1; // Set fpu_*_i2_ready[SIZE-2] to high (SIZE-2 is unused MSB).
-    assign fpu_mul_i2_ready = &fpu_div_i2_ready; // Used in S_T_I2 which is only reached when SIZE > 2.
+    assign ready_li2 = &fpu_div_i2_ready; // Used in S_T_I2 (S_T_I2 reached only when SIZE > 2).
 
     // Cholesky factor is lower triangular, so l_ij = 0 for j > i (i = 1, 2, 3, ..., n-1).
     generate
