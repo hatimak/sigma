@@ -5,6 +5,7 @@
  *
  * TODO -
  *   - Handle underflow, overflow, inexact, exception and invalid signals.
+ *   - Fix whitespace and indentations.
  * References -
  *   - https://rosettacode.org/wiki/Cholesky_decomposition (gives general formulae for computation)
  */
@@ -30,17 +31,26 @@ module cholesky #(parameter SIZE = 4) (
     localparam S_T_ROUTE  = 2'b01;
     localparam S_T_I2     = 2'b11;
 
+    // State declarations for Diagonal machine.
+    localparam S_D_IDLE   = 2'b00;
+    localparam S_D_CTRL   = 2'b01;
+
     wire                     sqrt_ready_a11, en_trav, ready_li2, fpu_mul_22_ready, fpu_add_22_ready, sqrt_22_ready;
-    wire [63:0]              fpu_mul_22_out, fpu_add_22_out;
+    wire                     fpu_mul_ik_ready, fpu_add_ik_ready, fpu_add_diag_ready, sqrt_diag_ready;
+    wire [63:0]              fpu_mul_22_out, fpu_add_22_out, fpu_mul_ik_out, fpu_add_ik_out, fpu_add_diag_out, sqrt_diag_y;
+    reg [63:0]               diag_trans_sum, diag_trans_prod, fpu_mul_ik_op, diag_aii;
     wire [SIZE-2:0]          fpu_i1_ready;
     // Since SIZE is at least 2, keep an additional bit (MSB) which will remain unused.
     // For SIZE=2, compute array for l_i,2 (i > 2) is NOT triggered.
     wire [SIZE-2:0]          fpu_mul_i2_ready, fpu_add_i2_ready, fpu_div_i2_ready;
     wire [((SIZE-1)*64)-1:0] fpu_mul_i2_out, fpu_add_i2_out; // Keep an additional vector (MSB).
+    reg [((SIZE-1)*64)-1:0]  sqrt_diag, sqrt_diag_sel; // Two most significant 64-bit wide slices unused (declared because SIZE >= 2).
     reg [1:0]                state_trav;
+    reg [2:0]                state_diag, state_offdiag;
     reg                      en_i2, ready_trav, en_diag, ready_diag, en_offdiag, ready_offdiag;
-    reg [2:0]                tmr_i2, tmr_diag, tmr_offdiag;
-    reg [7:0]                trav_i, trav_j; // 8-bit wide should limit SIZE to a maximum of 256.
+    reg                      en_fpu_mul_ik, en_fpu_add_ik, en_fpu_sumsqrt_ik;
+    reg [2:0]                tmr_i2, tmr_diag, tmr_offdiag, tmr_fpu_mul_ik, tmr_fpu_add_ik, tmr_fpu_sumsqrt_ik;
+    reg [7:0]                trav_i, trav_j, diag_k; // 8-bit wide should limit SIZE to a maximum of 256.
 
     sqrt sqrt_a11 (
         .y      (factor[63:0]), // l_11 = sqrt(a_11)
@@ -125,7 +135,6 @@ module cholesky #(parameter SIZE = 4) (
     // Traversal machine, triggered by en_trav.
     always @(posedge clk or negedge clk) begin
         if (rst && clk) begin
-            // Do initialisations.
             state_trav <= S_T_IDLE;
             en_i2 <= 0;
             tmr_i2 <= 0;
@@ -222,6 +231,142 @@ module cholesky #(parameter SIZE = 4) (
 
     assign ready = sqrt_22_ready & ready_trav;
 
+    // Diagonal machine, triggered by en_diag. trav_i is fixed by Traversal for a single run of Diagonal machine.
+    always @(posedge clk or negedge clk) begin
+        if (rst && clk) begin
+            // Do initialisations.
+            diag_k <= 0;
+            diag_trans_sum <= 0;
+            diag_trans_prod <= 0;
+            en_fpu_mul_ik <= 0;
+            tmr_fpu_mul_ik <= 0;
+            en_fpu_add_ik <= 0;
+            tmr_fpu_add_ik <= 0;
+            en_fpu_sumsqrt_ik <= 0;
+            tmr_fpu_sumsqrt_ik <= 0;
+            sqrt_diag <= 0;
+            sqrt_diag_sel <= 0;
+            fpu_mul_ik_op <= 0;
+            diag_aii <= 0;
+        end else if (!rst && clk) begin
+            case (state_diag)
+                S_D_IDLE: begin
+                    if (en_diag) begin
+                        // Start machine.
+                        sqrt_diag_sel <= MASK << (trav_i-2)*64;
+                        diag_aii <= (matrix & (MASK << (trav_i*SIZE + trav_i)*64)) >> (trav_i*SIZE + trav_i)*64;
+                    end else begin
+                        state_diag <= S_D_IDLE;
+                    end
+                end
+                S_D_CTRL: begin
+                    if (fpu_mul_ik_ready) begin
+                        diag_trans_prod <= fpu_mul_ik_out;
+                        // Increment diag_k and check if within bounds. If within, 
+                        // then setup operands and trigger multiplication.
+                        fpu_mul_ik_op <= (factor & (MASK << (trav_i*SIZE + diag_k)*64)) >> (trav_i*SIZE + diag_k)*64;
+                    end
+                    if (fpu_add_ik_ready) begin
+                        diag_trans_sum <= fpu_add_ik_out;
+                        // Check bounds on diag_k and decide whether multiply-accumulate (MAC)
+                        // operations should be concluded.
+                        // If MAC operations are done, diag_trans_sum holds final MAC-ed value 
+                        // for given iteration. Then set up operands for and trigger 
+                        // sum-and-sqrt (via en_fpu_sumsqrt_ik) to get l_ii,
+                        //     l_ii = sqrt(a_ii - MAC_sum))
+                    end
+                    if (sqrt_diag_ready) begin
+                        // This signals end of computation for l_ii. Store the result in 
+                        // respective sqrt_diag[] register (which should drive the corresponding 
+                        // factor[], wired below in a generate block).
+                        sqrt_diag <= (sqrt_diag & ~sqrt_diag_sel) | (sqrt_diag_y << (trav_i-2)*64) ;
+                    end
+                end
+            endcase
+        end else if (!rst && !clk) begin
+            // Manage timers and enable triggers.
+            if (tmr_fpu_mul_ik != 0 && en_fpu_mul_ik) begin
+                tmr_fpu_mul_ik <= tmr_fpu_mul_ik - 1;
+            end else if (tmr_fpu_mul_ik == 0 && en_fpu_mul_ik) begin
+                en_fpu_mul_ik <= 0;
+            end else if (tmr_fpu_mul_ik != 0 && !en_fpu_mul_ik) begin
+                en_fpu_mul_ik <= 1;
+            end
+            if (tmr_fpu_add_ik != 0 && en_fpu_add_ik) begin
+                tmr_fpu_add_ik <= tmr_fpu_add_ik - 1;
+            end else if (tmr_fpu_add_ik == 0 && en_fpu_add_ik) begin
+                en_fpu_add_ik <= 0;
+            end else if (tmr_fpu_add_ik != 0 && !en_fpu_add_ik) begin
+                en_fpu_add_ik <= 1;
+            end
+            if (tmr_fpu_sumsqrt_ik != 0 && en_fpu_sumsqrt_ik) begin
+                tmr_fpu_sumsqrt_ik <= tmr_fpu_sumsqrt_ik - 1;
+            end else if (tmr_fpu_sumsqrt_ik == 0 && en_fpu_sumsqrt_ik) begin
+                en_fpu_sumsqrt_ik <= 0;
+            end else if (tmr_fpu_sumsqrt_ik != 0 && !en_fpu_sumsqrt_ik) begin
+                en_fpu_sumsqrt_ik <= 1;
+            end
+        end
+    end
+
+    fpu fpu_mul_ik (
+        .clk       (clk),
+        .rst       (rst),
+        .enable    (en_fpu_mul_ik),
+        .rmode     (ROUND),
+        .fpu_op    (FPU_OP_MUL),
+        .opa       (fpu_mul_ik_op), // l_i,k (i from Traversal, k from Diagonal)
+        .opb       (fpu_mul_ik_op), // l_i,k
+        .out       (fpu_mul_ik_out), // l_i,k * l_i,k
+        .ready     (fpu_mul_ik_ready),
+        .underflow (),
+        .overflow  (),
+        .inexact   (),
+        .exception (),
+        .invalid   ()
+        );
+    fpu fpu_add_ik (
+        .clk       (clk),
+        .rst       (rst),
+        .enable    (en_fpu_add_ik),
+        .rmode     (ROUND),
+        .fpu_op    (FPU_OP_ADD),
+        .opa       (diag_trans_prod), // l_i,k * l_i,k
+        .opb       (diag_trans_sum), // Transient sum upto previous iteration(s).
+        .out       (fpu_add_ik_out), // 
+        .ready     (fpu_add_ik_ready),
+        .underflow (),
+        .overflow  (),
+        .inexact   (),
+        .exception (),
+        .invalid   ()
+        );
+
+    fpu fpu_add_diag (
+        .clk       (clk),
+        .rst       (rst),
+        .enable    (en_fpu_sumsqrt_ik),
+        .rmode     (ROUND),
+        .fpu_op    (FPU_OP_ADD),
+        .opa       (diag_trans_sum | (1 << 63)), // -(MAC_sum)
+        .opb       (diag_aii), // a_ii (i from Traversal)
+        .out       (fpu_add_diag_out), // a_ii - MAC_sum
+        .ready     (fpu_add_diag_ready),
+        .underflow (),
+        .overflow  (),
+        .inexact   (),
+        .exception (),
+        .invalid   ()
+        );
+    sqrt sqrt_diag_ii (
+        .y      (sqrt_diag_y), // l_ii = sqrt(a_ii - MAC_sum) (i from Traversal)
+        .ready  (sqrt_diag_ready),
+        .x      (fpu_add_diag_out), // a_ii - MAC_sum
+        .enable (fpu_add_diag_ready),
+        .clk    (clk),
+        .rst    (rst)
+        );
+
     // Array for l_i,2 computation (i > 2).
     // l_i,2 = (a_i,2 - l_21 * l_i,1) / l_22
     generate
@@ -289,6 +434,15 @@ module cholesky #(parameter SIZE = 4) (
 
     assign fpu_div_i2_ready[SIZE-2] = 1'b1; // Set fpu_*_i2_ready[SIZE-2] to high (SIZE-2 is unused MSB).
     assign ready_li2 = &fpu_div_i2_ready; // Used in S_T_I2 (S_T_I2 reached only when SIZE > 2).
+
+    // Cholesky factor is lower triangular, so l_ij = 0 for j > i (i = 1, 2, 3, ..., n-1).
+    generate
+        genvar i33_diag;
+        for (i33_diag = 2; i33_diag < SIZE; i33_diag = i33_diag + 1) begin
+            localparam IND_DIAG = ((i33_diag*SIZE + i33_diag)*64);
+            assign factor[IND_DIAG+63:IND_DIAG] = sqrt_diag[((i33_diag-2)*64)+63:(i33_diag-2)*64];
+        end
+    endgenerate
 
     // Cholesky factor is lower triangular, so l_ij = 0 for j > i (i = 1, 2, 3, ..., n-1).
     generate
