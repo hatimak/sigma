@@ -4,8 +4,11 @@
  *   - off-diagonal compute.
  *
  * TODO -
- *   - Handle underflow, overflow, inexact, exception and invalid signals.
- *   - Fix whitespace and indentations.
+ *   1. Handle underflow, overflow, inexact, exception and invalid signals.
+ *   2. In Traversal, change conditionals to use ready_*_p (pulse) signals instead of ready_* (level) signals (cf. fpu_mul_ik_ready_p, fpu_add_ik_ready_p, etc.)
+ *   3. Reduce module usage by reusing FPU instances for multiple types of operations. (Any other reuses possible?)
+ *   4. Reduce reg usage by offdiag_ij and offdiag_ij_sel, more than half stores "meaningless" values.
+ *   5. Fix whitespace and indentations.
  * References -
  *   - https://rosettacode.org/wiki/Cholesky_decomposition (gives general formulae for computation)
  */
@@ -37,24 +40,39 @@ module cholesky #(parameter SIZE = 4) (
     localparam S_D_MUL    = 2'b11;
     localparam S_D_SQRT   = 2'b10;
 
-    wire                     sqrt_ready_a11, en_trav, ready_li2, fpu_mul_22_ready, fpu_add_22_ready, sqrt_22_ready;
-    wire                     fpu_mul_ik_ready, fpu_add_ik_ready, fpu_add_diag_ready, sqrt_diag_ready;
-    wire                     fpu_mul_ik_ready_p, fpu_add_ik_ready_p, sqrt_diag_ready_p;
-    reg [1:0]                sr_fpu_mul_ik_ready, sr_fpu_add_ik_ready, sr_sqrt_diag_ready;
+    // State declarations for Off-diagonal machine.
+    localparam S_O_IDLE   = 2'b00;
+    localparam S_O_CTRL   = 2'b01;
+    localparam S_O_MUL    = 2'b11;
+    localparam S_O_DIV    = 2'b10;
+
+    // Off-diagonal element store (used by Off-diagonal machine). Only around 
+    // half of the vector holds "meaningful" values, but additional elements used 
+    // to allow easy indexing and to ensure indices don't go negative for lower SIZEs.
+    localparam OD_IN      = ((SIZE-1)*(SIZE-1)*64);
+
+    wire                     sqrt_ready_a11, en_trav, ready_li2, fpu_mul_22_ready, fpu_add_22_ready, sqrt_22_ready, fpu_add_offdiag_ready;
+    wire                     fpu_mul_ik_ready, fpu_add_ik_ready, fpu_add_diag_ready, sqrt_diag_ready, fpu_mul_ijk_ready, fpu_add_ijk_ready, fpu_div_offdiag_ready;
+    wire                     fpu_mul_ik_ready_p, fpu_add_ik_ready_p, sqrt_diag_ready_p, fpu_mul_ijk_ready_p, fpu_add_ijk_ready_p, fpu_div_offdiag_ready_p;
+    reg [1:0]                sr_fpu_mul_ik_ready, sr_fpu_add_ik_ready, sr_sqrt_diag_ready, sr_fpu_mul_ijk_ready, sr_fpu_add_ijk_ready, sr_fpu_div_offdiag_ready;
     wire [63:0]              fpu_mul_22_out, fpu_add_22_out, fpu_mul_ik_out, fpu_add_ik_out, fpu_add_diag_out, sqrt_diag_y;
-    reg [63:0]               diag_trans_sum, diag_trans_prod, fpu_mul_ik_op, diag_aii;
+    wire [63:0]              fpu_mul_ijk_out, fpu_add_ijk_out, fpu_div_offdiag_out, fpu_add_offdiag_out;
+    reg [63:0]               diag_trans_sum, diag_trans_prod, fpu_mul_ik_op, diag_aii, offdiag_ljj;
+    reg [63:0]               offdiag_trans_sum, offdiag_trans_prod, fpu_mul_ijk_opa, fpu_mul_ijk_opb, offdiag_aij;
     wire [SIZE-2:0]          fpu_i1_ready;
     // Since SIZE is at least 2, keep an additional bit (MSB) which will remain unused.
     // For SIZE=2, compute array for l_i,2 (i > 2) is NOT triggered.
     wire [SIZE-2:0]          fpu_mul_i2_ready, fpu_add_i2_ready, fpu_div_i2_ready;
     wire [((SIZE-1)*64)-1:0] fpu_mul_i2_out, fpu_add_i2_out; // Keep an additional vector (MSB).
     reg [((SIZE-1)*64)-1:0]  sqrt_diag, sqrt_diag_sel; // Two most significant 64-bit wide slices unused (declared because SIZE >= 2).
-    reg [1:0]                state_trav;
-    reg [2:0]                state_diag, state_offdiag;
+    reg [OD_IN-1:0]          offdiag_ij, offdiag_ij_sel; // TODO: Refer top comment (4).
+    reg [1:0]                state_trav, state_diag;
+    reg [2:0]                state_offdiag;
     reg                      en_i2, ready_trav, en_diag, ready_diag, en_offdiag, ready_offdiag;
-    reg                      en_fpu_mul_ik, en_fpu_add_ik, en_fpu_sumsqrt_ik;
+    reg                      en_fpu_mul_ik, en_fpu_add_ik, en_fpu_sumsqrt_ik, en_fpu_mul_ijk, en_fpu_add_ijk, en_fpu_sumdiv_ijk;
     reg [2:0]                tmr_i2, tmr_diag, tmr_offdiag, tmr_fpu_mul_ik, tmr_fpu_add_ik, tmr_fpu_sumsqrt_ik;
-    reg [7:0]                trav_i, trav_j, diag_k; // 8-bit wide should limit SIZE to a maximum of 256.
+    reg [2:0]                tmr_fpu_mul_ijk, tmr_fpu_add_ijk, tmr_fpu_sumdiv_ijk;
+    reg [7:0]                trav_i, trav_j, diag_k, offdiag_k; // 8-bit wide should limit SIZE to a maximum of 256.
 
     sqrt sqrt_a11 (
         .y      (factor[63:0]), // l_11 = sqrt(a_11)
@@ -235,6 +253,187 @@ module cholesky #(parameter SIZE = 4) (
 
     assign ready = sqrt_22_ready & ready_trav;
 
+    // Off-diagonal machine, triggered by en_offdiag.
+    //     l_ij = (a_ij - MAC_sum) / l_jj when MAC_sum = sum(l_ik * l_jk) from k=1 to j-1 
+    //         i, j correspond to trav_i, trav_j respectively and are set by Traversal 
+    //         so both are effectively constants for a single run of Off-diagonal.
+    // It can be noted that the off-diagonal and diagonal element computations are very similar.
+    always @(posedge clk or negedge clk) begin
+        if (rst && clk) begin
+            // Do initialisations.
+            offdiag_k <= 0;
+            offdiag_trans_sum <= 0;
+            offdiag_trans_prod <= 0;
+            fpu_mul_ijk_opa <= 0;
+            fpu_mul_ijk_opb <= 0;
+            en_fpu_mul_ijk <= 0;
+            tmr_fpu_mul_ijk <= 0;
+            en_fpu_add_ijk <= 0;
+            tmr_fpu_add_ijk <= 0;
+            en_fpu_sumdiv_ijk <= 0;
+            tmr_fpu_sumdiv_ijk <= 0;
+            offdiag_ij <= 0;
+            offdiag_ij_sel <= 0;
+            offdiag_aij <= 0;
+            offdiag_ljj <= 0;
+            ready_offdiag <= 0;
+        end else if (!rst && clk) begin
+            case (state_offdiag)
+                S_O_IDLE: begin
+                    if (en_offdiag) begin
+                        // Start machine.
+                        // Compute and set the constants for this run of Off-diagonal.
+                        offdiag_ij_sel <= MASK << ((trav_i-3)*(SIZE-3) + (trav_j-2))*64;
+                        offdiag_aij <= (matrix & (MASK << (trav_i*SIZE + trav_j)*64)) >> (trav_i*SIZE + trav_j)*64; // a_i,j
+                        offdiag_ljj <= (factor & (MASK << (trav_j*SIZE + trav_j)*64)) >> (trav_j*SIZE + trav_j)*64; // l_j,j
+                        // Reset offdiag_k (subscript k in following comments).
+                        offdiag_k <= 0;
+                        // Reset transient MAC_sum.
+                        offdiag_trans_sum <= 0;
+                        ready_offdiag <= 0;
+                        state_diag <= S_O_MUL;
+                    end else begin
+                        state_diag <= S_O_IDLE;
+                    end
+                end
+                S_O_MUL: begin
+                    fpu_mul_ijk_opa <= (factor & (MASK << (trav_i*SIZE + offdiag_k)*64)) >> (trav_i*SIZE + offdiag_k)*64; // l_i,k
+                    fpu_mul_ijk_opb <= (factor & (MASK << (trav_j*SIZE + offdiag_k)*64)) >> (trav_j*SIZE + offdiag_k)*64; // l_j,k
+                    tmr_fpu_mul_ijk <= TMR_LOAD;
+                    state_offdiag <= S_O_CTRL;
+                end
+                S_O_CTRL: begin
+                    if (fpu_mul_ijk_ready_p) begin
+                        // Increment diag_k, check if within bound, and trigger addition. 
+                        // If within bounds, then setup operands and also trigger multiplication.
+                        offdiag_trans_prod <= fpu_mul_ijk_out;
+                        tmr_fpu_add_ijk <= TMR_LOAD;
+                        if (offdiag_k < trav_j - 1) begin // Setup operands and trigger multiplication. 
+                            offdiag_k <= offdiag_k + 1;
+                            state_offdiag <= S_O_MUL;
+                        end else begin
+                            state_offdiag <= S_O_CTRL; 
+                        end                        
+                    end else if (fpu_add_ijk_ready_p) begin
+                        offdiag_trans_sum <= fpu_add_ijk_out;
+                        if (offdiag_k == trav_j - 1) begin // Whether multiply-accumulate (MAC) operations should be concluded.
+                            // If MAC operations are done, offdiag_trans_sum holds final MAC-ed value 
+                            // for given iteration.
+                            //     l_ij = (a_ij - MAC_sum)) / l_jj;
+                            tmr_fpu_sumdiv_ijk <= TMR_LOAD;
+                            state_offdiag <= S_O_DIV;
+                        end else begin
+                            state_offdiag <= S_O_CTRL;
+                        end
+                    end else begin
+                        state_offdiag <= S_O_CTRL;
+                    end
+                end
+                S_O_DIV: begin
+                    if (fpu_div_offdiag_ready_p) begin
+                        // This signals end of computation for l_i,j. Store the result in respective 
+                        // offdiag_ij[] register (which should drive the corresponding factor[], wired 
+                        // below in a generate block).
+                        offdiag_ij <= (offdiag_ij & ~offdiag_ij_sel) | (fpu_div_offdiag_out << ((trav_i-3)*(SIZE-3) + (trav_j-2))*64);
+                        ready_offdiag <= 1;
+                        state_offdiag <= S_O_IDLE;
+                    end else begin
+                        state_offdiag <= S_O_DIV;
+                    end
+                end
+            endcase
+        end else if (!rst && !clk) begin
+            // Manage timers and enable triggers.
+            if (tmr_fpu_mul_ijk != 0 && en_fpu_mul_ijk) begin
+                tmr_fpu_mul_ijk <= tmr_fpu_mul_ijk - 1;
+            end else if (tmr_fpu_mul_ijk == 0 && en_fpu_mul_ijk) begin
+                en_fpu_mul_ijk <= 0;
+            end else if (tmr_fpu_mul_ijk != 0 && !en_fpu_mul_ijk) begin
+                en_fpu_mul_ijk <= 1;
+            end
+            if (tmr_fpu_add_ijk != 0 && en_fpu_add_ijk) begin
+                tmr_fpu_add_ijk <= tmr_fpu_add_ijk - 1;
+            end else if (tmr_fpu_add_ijk == 0 && en_fpu_add_ijk) begin
+                en_fpu_add_ijk <= 0;
+            end else if (tmr_fpu_add_ijk != 0 && !en_fpu_add_ijk) begin
+                en_fpu_add_ijk <= 1;
+            end
+            if (tmr_fpu_sumdiv_ijk != 0 && en_fpu_sumdiv_ijk) begin
+                tmr_fpu_sumdiv_ijk <= tmr_fpu_sumdiv_ijk - 1;
+            end else if (tmr_fpu_sumdiv_ijk == 0 && en_fpu_sumdiv_ijk) begin
+                en_fpu_sumdiv_ijk <= 0;
+            end else if (tmr_fpu_sumdiv_ijk != 0 && !en_fpu_sumdiv_ijk) begin
+                en_fpu_sumdiv_ijk <= 1;
+            end
+        end
+    end
+
+    fpu fpu_mul_ijk (
+        .clk       (clk),
+        .rst       (rst),
+        .enable    (en_fpu_mul_ijk),
+        .rmode     (ROUND),
+        .fpu_op    (FPU_OP_MUL),
+        .opa       (fpu_mul_ijk_opa), // l_i,k
+        .opb       (fpu_mul_ijk_opb), // l_j,k
+        .out       (fpu_mul_ijk_out), // l_i,k * l_j,k
+        .ready     (fpu_mul_ijk_ready),
+        .underflow (),
+        .overflow  (),
+        .inexact   (),
+        .exception (),
+        .invalid   ()
+        );
+    fpu fpu_add_ijk (
+        .clk       (clk),
+        .rst       (rst),
+        .enable    (en_fpu_add_ijk),
+        .rmode     (ROUND),
+        .fpu_op    (FPU_OP_ADD),
+        .opa       (offdiag_trans_prod), // l_i,k * l_j,k
+        .opb       (offdiag_trans_sum), // Transient sum upto previous iteration(s).
+        .out       (fpu_add_ijk_out),
+        .ready     (fpu_add_ijk_ready),
+        .underflow (),
+        .overflow  (),
+        .inexact   (),
+        .exception (),
+        .invalid   ()
+        );
+
+    fpu fpu_add_offdiag (
+        .clk       (clk),
+        .rst       (rst),
+        .enable    (en_fpu_sumdiv_ijk),
+        .rmode     (ROUND),
+        .fpu_op    (FPU_OP_ADD),
+        .opa       (offdiag_aij), // a_i,j (i, j from Traversal)
+        .opb       (offdiag_trans_sum | (1 << 63)), // -(MAC_sum)
+        .out       (fpu_add_offdiag_out), // a_i,j - MAC_sum
+        .ready     (fpu_add_offdiag_ready),
+        .underflow (),
+        .overflow  (),
+        .inexact   (),
+        .exception (),
+        .invalid   ()
+        );
+    fpu fpu_div_offdiag (
+        .clk       (clk),
+        .rst       (rst),
+        .enable    (fpu_add_offdiag_ready),
+        .rmode     (ROUND),
+        .fpu_op    (FPU_OP_DIV),
+        .opa       (fpu_add_offdiag_out), // a_i,j - MAC_sum
+        .opb       (offdiag_ljj), // l_j,j
+        .out       (fpu_div_offdiag_out), // (a_i,j - MAC_sum) / l_j,j
+        .ready     (fpu_div_offdiag_ready),
+        .underflow (),
+        .overflow  (),
+        .inexact   (),
+        .exception (),
+        .invalid   ()
+        );
+
     // Diagonal machine, triggered by en_diag. trav_i is fixed by Traversal for a single run of Diagonal machine.
     always @(posedge clk or negedge clk) begin
         if (rst && clk) begin
@@ -299,7 +498,6 @@ module cholesky #(parameter SIZE = 4) (
                         end else begin
                             state_diag <= S_D_CTRL;
                         end
-                        state_diag <= S_D_CTRL;
                     end else begin
                         state_diag <= S_D_CTRL;
                     end
@@ -367,7 +565,7 @@ module cholesky #(parameter SIZE = 4) (
         .fpu_op    (FPU_OP_ADD),
         .opa       (diag_trans_prod), // l_i,k * l_i,k
         .opb       (diag_trans_sum), // Transient sum upto previous iteration(s).
-        .out       (fpu_add_ik_out), // 
+        .out       (fpu_add_ik_out),
         .ready     (fpu_add_ik_ready),
         .underflow (),
         .overflow  (),
@@ -406,16 +604,25 @@ module cholesky #(parameter SIZE = 4) (
             sr_fpu_add_ik_ready <= 0;
             sr_fpu_mul_ik_ready <= 0;
             sr_sqrt_diag_ready <= 0;
+            sr_fpu_mul_ijk_ready <= 0;
+            sr_fpu_add_ijk_ready <= 0;
+            sr_fpu_div_offdiag_ready <= 0;
         end else begin
             sr_fpu_add_ik_ready <= {sr_fpu_add_ik_ready[0], fpu_add_ik_ready};
             sr_fpu_mul_ik_ready <= {sr_fpu_mul_ik_ready[0], fpu_mul_ik_ready};
             sr_sqrt_diag_ready <= {sr_sqrt_diag_ready[0], sqrt_diag_ready};
+            sr_fpu_mul_ijk_ready <= {sr_fpu_mul_ijk_ready[0], fpu_mul_ijk_ready};
+            sr_fpu_add_ijk_ready <= {sr_fpu_add_ijk_ready[0], fpu_add_ijk_ready};
+            sr_fpu_div_offdiag_ready <= {sr_fpu_div_offdiag_ready[0], fpu_div_offdiag_ready};
         end
     end
 
     assign fpu_add_ik_ready_p = ~sr_fpu_add_ik_ready[1] & fpu_add_ik_ready;
     assign fpu_mul_ik_ready_p = ~sr_fpu_mul_ik_ready[1] & fpu_mul_ik_ready;
     assign sqrt_diag_ready_p = ~sr_sqrt_diag_ready[1] & sqrt_diag_ready;
+    assign fpu_mul_ijk_ready_p = ~sr_fpu_mul_ijk_ready[1] & fpu_mul_ijk_ready;
+    assign fpu_add_ijk_ready_p = ~sr_fpu_add_ijk_ready[1] & fpu_add_ijk_ready;
+    assign fpu_div_offdiag_ready_p = ~sr_fpu_div_offdiag_ready[1] & fpu_div_offdiag_ready;
 
     // Array for l_i,2 computation (i > 2).
     // l_i,2 = (a_i,2 - l_21 * l_i,1) / l_22
@@ -485,7 +692,21 @@ module cholesky #(parameter SIZE = 4) (
     assign fpu_div_i2_ready[SIZE-2] = 1'b1; // Set fpu_*_i2_ready[SIZE-2] to high (SIZE-2 is unused MSB).
     assign ready_li2 = &fpu_div_i2_ready; // Used in S_T_I2 (S_T_I2 reached only when SIZE > 2).
 
-    // Cholesky factor is lower triangular, so l_ij = 0 for j > i (i = 1, 2, 3, ..., n-1).
+    // Connect off-diagonal elements from offdiag_ij[] reg store (where Off-diagonal 
+    // machine stores computed values) to respective factor[] elements.
+    generate
+        genvar ods_i, ods_j; // ods = Off-diag store.
+        for (ods_j = 2; ods_j <= SIZE-2; ods_j = ods_j + 1) begin
+            for (ods_i = ods_j + 1; ods_i <= SIZE-1; ods_i = ods_i + 1) begin
+                localparam ODS_F = ( (ods_i*SIZE + ods_j)*64 );
+                localparam ODS_O = ( ((ods_i-3)*(SIZE-3) + (ods_j-2))*64 );
+                assign factor[ODS_F+63:ODS_F] = offdiag_ij[ODS_O+63:ODS_O];
+            end
+        end
+    endgenerate
+
+    // Connect diagonal elements from sqrt_diag[] reg store (where Diagonal 
+    // machine stores computed values) to resepective output factor[] elements.
     generate
         genvar i33_diag;
         for (i33_diag = 2; i33_diag < SIZE; i33_diag = i33_diag + 1) begin
