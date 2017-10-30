@@ -34,9 +34,13 @@ module cholesky #(parameter SIZE = 4) (
     // State declarations for Diagonal machine.
     localparam S_D_IDLE   = 2'b00;
     localparam S_D_CTRL   = 2'b01;
+    localparam S_D_MUL    = 2'b11;
+    localparam S_D_SQRT   = 2'b10;
 
     wire                     sqrt_ready_a11, en_trav, ready_li2, fpu_mul_22_ready, fpu_add_22_ready, sqrt_22_ready;
     wire                     fpu_mul_ik_ready, fpu_add_ik_ready, fpu_add_diag_ready, sqrt_diag_ready;
+    wire                     fpu_mul_ik_ready_p, fpu_add_ik_ready_p, sqrt_diag_ready_p;
+    reg [1:0]                sr_fpu_mul_ik_ready, sr_fpu_add_ik_ready, sr_sqrt_diag_ready;
     wire [63:0]              fpu_mul_22_out, fpu_add_22_out, fpu_mul_ik_out, fpu_add_ik_out, fpu_add_diag_out, sqrt_diag_y;
     reg [63:0]               diag_trans_sum, diag_trans_prod, fpu_mul_ik_op, diag_aii;
     wire [SIZE-2:0]          fpu_i1_ready;
@@ -248,38 +252,68 @@ module cholesky #(parameter SIZE = 4) (
             sqrt_diag_sel <= 0;
             fpu_mul_ik_op <= 0;
             diag_aii <= 0;
+            ready_diag <= 0;
         end else if (!rst && clk) begin
             case (state_diag)
                 S_D_IDLE: begin
                     if (en_diag) begin
                         // Start machine.
+                        // Compute and set the constants for this run of Diagonal.
                         sqrt_diag_sel <= MASK << (trav_i-2)*64;
                         diag_aii <= (matrix & (MASK << (trav_i*SIZE + trav_i)*64)) >> (trav_i*SIZE + trav_i)*64;
+                        // Reset diag_k (subscript k in following comments).
+                        diag_k <= 0;
+                        // Reset transient MAC_sum.
+                        diag_trans_sum <= 0;
+                        ready_diag <= 0;
+                        state_diag <= S_D_MUL;
                     end else begin
                         state_diag <= S_D_IDLE;
                     end
                 end
+                S_D_MUL: begin
+                    fpu_mul_ik_op <= (factor & (MASK << (trav_i*SIZE + diag_k)*64)) >> (trav_i*SIZE + diag_k)*64;
+                    tmr_fpu_mul_ik <= TMR_LOAD;
+                    state_diag <= S_D_CTRL;
+                end
                 S_D_CTRL: begin
-                    if (fpu_mul_ik_ready) begin
+                    if (fpu_mul_ik_ready_p) begin
+                        // Increment diag_k, check if within bound, and trigger addition. 
+                        // If within bounds, then setup operands and also trigger multiplication.
                         diag_trans_prod <= fpu_mul_ik_out;
-                        // Increment diag_k and check if within bounds. If within, 
-                        // then setup operands and trigger multiplication.
-                        fpu_mul_ik_op <= (factor & (MASK << (trav_i*SIZE + diag_k)*64)) >> (trav_i*SIZE + diag_k)*64;
-                    end
-                    if (fpu_add_ik_ready) begin
+                        tmr_fpu_add_ik <= TMR_LOAD;
+                        if (diag_k < trav_i - 1) begin // Setup operands and trigger multiplication. 
+                            diag_k <= diag_k + 1;
+                            state_diag <= S_D_MUL;
+                        end else begin
+                            state_diag <= S_D_CTRL; 
+                        end                        
+                    end else if (fpu_add_ik_ready_p) begin
                         diag_trans_sum <= fpu_add_ik_out;
-                        // Check bounds on diag_k and decide whether multiply-accumulate (MAC)
-                        // operations should be concluded.
-                        // If MAC operations are done, diag_trans_sum holds final MAC-ed value 
-                        // for given iteration. Then set up operands for and trigger 
-                        // sum-and-sqrt (via en_fpu_sumsqrt_ik) to get l_ii,
-                        //     l_ii = sqrt(a_ii - MAC_sum))
+                        if (diag_k == trav_i - 1) begin // Whether multiply-accumulate (MAC) operations should be concluded.
+                            // If MAC operations are done, diag_trans_sum holds final MAC-ed value 
+                            // for given iteration.
+                            //     l_ii = sqrt(a_ii - MAC_sum))
+                            tmr_fpu_sumsqrt_ik <= TMR_LOAD;
+                            state_diag <= S_D_SQRT;
+                        end else begin
+                            state_diag <= S_D_CTRL;
+                        end
+                        state_diag <= S_D_CTRL;
+                    end else begin
+                        state_diag <= S_D_CTRL;
                     end
-                    if (sqrt_diag_ready) begin
+                end
+                S_D_SQRT: begin
+                    if (sqrt_diag_ready_p) begin
                         // This signals end of computation for l_ii. Store the result in 
                         // respective sqrt_diag[] register (which should drive the corresponding 
                         // factor[], wired below in a generate block).
-                        sqrt_diag <= (sqrt_diag & ~sqrt_diag_sel) | (sqrt_diag_y << (trav_i-2)*64) ;
+                        sqrt_diag <= (sqrt_diag & ~sqrt_diag_sel) | (sqrt_diag_y << (trav_i-2)*64);
+                        ready_diag <= 1;
+                        state_diag <= S_D_IDLE;
+                    end else begin
+                        state_diag <= S_D_SQRT;
                     end
                 end
             endcase
@@ -366,6 +400,22 @@ module cholesky #(parameter SIZE = 4) (
         .clk    (clk),
         .rst    (rst)
         );
+
+    always @(negedge clk) begin
+        if (rst) begin
+            sr_fpu_add_ik_ready <= 0;
+            sr_fpu_mul_ik_ready <= 0;
+            sr_sqrt_diag_ready <= 0;
+        end else begin
+            sr_fpu_add_ik_ready <= {sr_fpu_add_ik_ready[0], fpu_add_ik_ready};
+            sr_fpu_mul_ik_ready <= {sr_fpu_mul_ik_ready[0], fpu_mul_ik_ready};
+            sr_sqrt_diag_ready <= {sr_sqrt_diag_ready[0], sqrt_diag_ready};
+        end
+    end
+
+    assign fpu_add_ik_ready_p = ~sr_fpu_add_ik_ready[1] & fpu_add_ik_ready;
+    assign fpu_mul_ik_ready_p = ~sr_fpu_mul_ik_ready[1] & fpu_mul_ik_ready;
+    assign sqrt_diag_ready_p = ~sr_sqrt_diag_ready[1] & sqrt_diag_ready;
 
     // Array for l_i,2 computation (i > 2).
     // l_i,2 = (a_i,2 - l_21 * l_i,1) / l_22
