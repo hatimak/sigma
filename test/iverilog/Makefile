@@ -24,6 +24,10 @@ sqrt: sqrt.v ../../src/verilog/ancillary/sqrt.v $(FPU_SRC)
 	$(CC) -o sqrt.out sqrt.v ../../src/verilog/ancillary/sqrt.v $(FPU_SRC)
 	vvp sqrt.out
 
+cholesky: cholesky.v ../../src/verilog/matrix/cholesky.v ../../src/verilog/ancillary/sqrt.v $(FPU_SRC)
+	$(CC) -o cholesky.out cholesky.v ../../src/verilog/matrix/cholesky.v ../../src/verilog/ancillary/sqrt.v $(FPU_SRC)
+	vvp cholesky.out
+
 .PHONY: clean
 
 clean:
