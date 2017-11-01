@@ -5,10 +5,12 @@
  *
  * TODO -
  *   1. Handle underflow, overflow, inexact, exception and invalid signals.
- *   2. In Traversal, change conditionals to use ready_*_p (pulse) signals instead of ready_* (level) signals (cf. fpu_mul_ik_ready_p, fpu_add_ik_ready_p, etc.)
+ *   2. Improve wire, reg, etc. definitions clearer (currently all definitions look very chaotic).
  *   3. Reduce module usage by reusing FPU instances for multiple types of operations. (Any other reuses possible?)
  *   4. Reduce reg usage by offdiag_ij and offdiag_ij_sel, more than half stores "meaningless" values.
- *   5. Fix whitespace and indentations.
+ *   5. Improve naming scheme (some name are too complicated right now).
+ *   6. Convert all ready-triggered enables into ready-pulse-triggered enables (cf. reapy_p signals).
+ *
  * References -
  *   - https://rosettacode.org/wiki/Cholesky_decomposition (gives general formulae for computation)
  */
@@ -51,15 +53,18 @@ module cholesky #(parameter SIZE = 4) (
     // to allow easy indexing and to ensure indices don't go negative for lower SIZEs.
     localparam OD_IN      = ((SIZE-1)*(SIZE-1)*64);
 
-    wire                     sqrt_ready_a11, en_trav, ready_li2, fpu_mul_22_ready, fpu_add_22_ready, sqrt_22_ready, fpu_add_offdiag_ready;
+    wire                     sqrt_ready_a11, sqrt_ready_a11_p, en_trav, ready_li2, fpu_mul_22_ready, fpu_add_22_ready, sqrt_22_ready, fpu_add_offdiag_ready;
     wire                     fpu_mul_ik_ready, fpu_add_ik_ready, fpu_add_diag_ready, sqrt_diag_ready, fpu_mul_ijk_ready, fpu_add_ijk_ready, fpu_div_offdiag_ready;
     wire                     fpu_mul_ik_ready_p, fpu_add_ik_ready_p, sqrt_diag_ready_p, fpu_mul_ijk_ready_p, fpu_add_ijk_ready_p, fpu_div_offdiag_ready_p;
+    wire                     ready_diag_p, ready_offdiag_p, fpu_mul_22_ready_p, fpu_add_22_ready_p, en_trav_p, ready_li2_p;
     reg [1:0]                sr_fpu_mul_ik_ready, sr_fpu_add_ik_ready, sr_sqrt_diag_ready, sr_fpu_mul_ijk_ready, sr_fpu_add_ijk_ready, sr_fpu_div_offdiag_ready;
+    reg [1:0]                sr_ready_diag, sr_ready_offdiag, sr_sqrt_ready_a11, sr_fpu_mul_22_ready, sr_fpu_add_22_ready, sr_en_trav, sr_ready_li2;
     wire [63:0]              fpu_mul_22_out, fpu_add_22_out, fpu_mul_ik_out, fpu_add_ik_out, fpu_add_diag_out, sqrt_diag_y;
     wire [63:0]              fpu_mul_ijk_out, fpu_add_ijk_out, fpu_div_offdiag_out, fpu_add_offdiag_out;
     reg [63:0]               diag_trans_sum, diag_trans_prod, fpu_mul_ik_op, diag_aii, offdiag_ljj;
     reg [63:0]               offdiag_trans_sum, offdiag_trans_prod, fpu_mul_ijk_opa, fpu_mul_ijk_opb, offdiag_aij;
-    wire [SIZE-2:0]          fpu_i1_ready;
+    wire [SIZE-2:0]          fpu_i1_ready, fpu_i1_ready_p;
+    reg [(SIZE-1)*2-1:0]     sr_fpu_i1_ready;
     // Since SIZE is at least 2, keep an additional bit (MSB) which will remain unused.
     // For SIZE=2, compute array for l_i,2 (i > 2) is NOT triggered.
     wire [SIZE-2:0]          fpu_mul_i2_ready, fpu_add_i2_ready, fpu_div_i2_ready;
@@ -74,7 +79,7 @@ module cholesky #(parameter SIZE = 4) (
     reg [2:0]                tmr_fpu_mul_ijk, tmr_fpu_add_ijk, tmr_fpu_sumdiv_ijk;
     reg [7:0]                trav_i, trav_j, diag_k, offdiag_k; // 8-bit wide should limit SIZE to a maximum of 256.
 
-    sqrt sqrt_a11 (
+    sqrt #(.ITER(4)) sqrt_a11 (
         .y      (factor[63:0]), // l_11 = sqrt(a_11)
         .ready  (sqrt_ready_a11),
         .x      (matrix[63:0]), // a_11
@@ -92,7 +97,7 @@ module cholesky #(parameter SIZE = 4) (
             fpu fpu_i1 (
                 .clk       (clk),
                 .rst       (rst),
-                .enable    (sqrt_ready_a11),
+                .enable    (sqrt_ready_a11_p),
                 .rmode     (ROUND),
                 .fpu_op    (FPU_OP_DIV),
                 .opa       (matrix[IND_I1+63:IND_I1]), // a_i,1
@@ -111,42 +116,42 @@ module cholesky #(parameter SIZE = 4) (
     // Since SIZE is at least 2, l_22 needs to be computed in any case.
     // l_22 = sqrt(a_22 - l_21 * l_21)
     fpu fpu_mul_22 (
-            .clk       (clk),
-            .rst       (rst),
-            .enable    (fpu_i1_ready[0]), // Enable as soon as l_21 computation is ready (irrespective of other l_i,1).
-            .rmode     (ROUND),
-            .fpu_op    (FPU_OP_MUL),
-            .opa       (factor[(SIZE*64)+63:SIZE*64]), // l_21
-            .opb       (factor[(SIZE*64)+63:SIZE*64]), // l_21
-            .out       (fpu_mul_22_out), // l_21 * l_21
-            .ready     (fpu_mul_22_ready),
-            .underflow (),
-            .overflow  (),
-            .inexact   (),
-            .exception (),
-            .invalid   ()
-            );
+        .clk       (clk),
+        .rst       (rst),
+        .enable    (fpu_i1_ready_p[0]), // Enable as soon as l_21 computation is ready (irrespective of other l_i,1).
+        .rmode     (ROUND),
+        .fpu_op    (FPU_OP_MUL),
+        .opa       (factor[(SIZE*64)+63:SIZE*64]), // l_21
+        .opb       (factor[(SIZE*64)+63:SIZE*64]), // l_21
+        .out       (fpu_mul_22_out), // l_21 * l_21
+        .ready     (fpu_mul_22_ready),
+        .underflow (),
+        .overflow  (),
+        .inexact   (),
+        .exception (),
+        .invalid   ()
+        );
     fpu fpu_add_22 (
-            .clk       (clk),
-            .rst       (rst),
-            .enable    (fpu_mul_22_ready),
-            .rmode     (ROUND),
-            .fpu_op    (FPU_OP_ADD),
-            .opa       (matrix[((SIZE+1)*64)+63:(SIZE+1)*64]), // a_22
-            .opb       (fpu_mul_22_out | (1 << 63)), // -(l_21 * l_21)
-            .out       (fpu_add_22_out), // a_22 - l_21 * l_21
-            .ready     (fpu_add_22_ready),
-            .underflow (),
-            .overflow  (),
-            .inexact   (),
-            .exception (),
-            .invalid   ()
-            );
-    sqrt sqrt_22 (
+        .clk       (clk),
+        .rst       (rst),
+        .enable    (fpu_mul_22_ready_p),
+        .rmode     (ROUND),
+        .fpu_op    (FPU_OP_ADD),
+        .opa       (matrix[((SIZE+1)*64)+63:(SIZE+1)*64]), // a_22
+        .opb       ({~fpu_mul_22_out[63], fpu_mul_22_out[62:0]}), // -(l_21 * l_21)
+        .out       (fpu_add_22_out), // a_22 - l_21 * l_21
+        .ready     (fpu_add_22_ready),
+        .underflow (),
+        .overflow  (),
+        .inexact   (),
+        .exception (),
+        .invalid   ()
+        );
+    sqrt #(.ITER(3)) sqrt_22 (
         .y      (factor[((SIZE+1)*64)+63:(SIZE+1)*64]), // l_22
         .ready  (sqrt_22_ready),
         .x      (fpu_add_22_out), // a_22 - l_21 * l_21
-        .enable (fpu_add_22_ready),
+        .enable (fpu_add_22_ready_p),
         .clk    (clk),
         .rst    (rst)
         );
@@ -154,7 +159,7 @@ module cholesky #(parameter SIZE = 4) (
     // Trigger Traversal machine once all l_i,1 and l_22 are computed.
     assign en_trav = &fpu_i1_ready & sqrt_22_ready;
 
-    // Traversal machine, triggered by en_trav.
+    // Traversal machine, triggered by en_trav_p.
     always @(posedge clk or negedge clk) begin
         if (rst && clk) begin
             state_trav <= S_T_IDLE;
@@ -168,7 +173,7 @@ module cholesky #(parameter SIZE = 4) (
         end else if (!rst && clk) begin
             case (state_trav)
                 S_T_IDLE: begin
-                    if (en_trav) begin
+                    if (en_trav_p) begin
                         // Depending on size, check whether computations are needed. If size permits, 
                         // trigger array for l_i,2 (for i > 2) computaion using en_i2 and tmr_i2, 
                         // and wait (S_T_I2).
@@ -188,7 +193,7 @@ module cholesky #(parameter SIZE = 4) (
                     // Increment indices for factor matrix, route triggers to diagonal or off-diagonal 
                     // compute machines, decide whether end is reached, and wait while computes are busy.
                     // At a given time, only one of Diagonal or Off-diagonal machines are busy.
-                    if (ready_diag && tmr_diag == 0) begin // Diagonal machine is done with compute task.
+                    if (ready_diag_p && tmr_diag == 0) begin // Diagonal machine is done with compute task.
                         if (trav_i == SIZE-1 && trav_j == SIZE-1) begin
                             // The last element l_ij of factor to be computed will always reside on the diagonal.
                             ready_trav <= 1;
@@ -201,7 +206,7 @@ module cholesky #(parameter SIZE = 4) (
                             tmr_offdiag <= TMR_LOAD;
                             state_trav <= S_T_ROUTE;
                         end
-                    end if (ready_offdiag && tmr_offdiag == 0) begin // Off-diagonal machine is done with compute task.
+                    end else if (ready_offdiag_p && tmr_offdiag == 0) begin // Off-diagonal machine is done with compute task.
                         if (trav_j == trav_i - 1) begin // If next element resides on diagonal, trigger Diagonal machine.
                             tmr_diag <= TMR_LOAD;
                         end else begin // Trigger Off-diagonal machine.
@@ -214,7 +219,7 @@ module cholesky #(parameter SIZE = 4) (
                     end
                 end
                 S_T_I2: begin
-                    if (ready_li2 && tmr_i2 == 0) begin
+                    if (ready_li2_p && tmr_i2 == 0) begin
                         // Start computing l_ij from l_33 onwards.
                         trav_i <= 2;
                         trav_j <= 2;
@@ -309,14 +314,14 @@ module cholesky #(parameter SIZE = 4) (
                         offdiag_trans_prod <= fpu_mul_ijk_out;
                         tmr_fpu_add_ijk <= TMR_LOAD;
                         if (offdiag_k < trav_j - 1) begin // Setup operands and trigger multiplication. 
-                            offdiag_k <= offdiag_k + 1;
                             state_offdiag <= S_O_MUL;
                         end else begin
                             state_offdiag <= S_O_CTRL; 
-                        end                        
+                        end
+                        offdiag_k <= offdiag_k + 1;
                     end else if (fpu_add_ijk_ready_p) begin
                         offdiag_trans_sum <= fpu_add_ijk_out;
-                        if (offdiag_k == trav_j - 1) begin // Whether multiply-accumulate (MAC) operations should be concluded.
+                        if (offdiag_k == trav_j) begin // Whether multiply-accumulate (MAC) operations should be concluded.
                             // If MAC operations are done, offdiag_trans_sum holds final MAC-ed value 
                             // for given iteration.
                             //     l_ij = (a_ij - MAC_sum)) / l_jj;
@@ -408,7 +413,7 @@ module cholesky #(parameter SIZE = 4) (
         .rmode     (ROUND),
         .fpu_op    (FPU_OP_ADD),
         .opa       (offdiag_aij), // a_i,j (i, j from Traversal)
-        .opb       (offdiag_trans_sum | (1 << 63)), // -(MAC_sum)
+        .opb       ({~offdiag_trans_sum[63], offdiag_trans_sum[62:0]}), // -(MAC_sum)
         .out       (fpu_add_offdiag_out), // a_i,j - MAC_sum
         .ready     (fpu_add_offdiag_ready),
         .underflow (),
@@ -452,6 +457,7 @@ module cholesky #(parameter SIZE = 4) (
             fpu_mul_ik_op <= 0;
             diag_aii <= 0;
             ready_diag <= 0;
+            state_diag <= S_D_IDLE;
         end else if (!rst && clk) begin
             case (state_diag)
                 S_D_IDLE: begin
@@ -482,14 +488,14 @@ module cholesky #(parameter SIZE = 4) (
                         diag_trans_prod <= fpu_mul_ik_out;
                         tmr_fpu_add_ik <= TMR_LOAD;
                         if (diag_k < trav_i - 1) begin // Setup operands and trigger multiplication. 
-                            diag_k <= diag_k + 1;
                             state_diag <= S_D_MUL;
                         end else begin
                             state_diag <= S_D_CTRL; 
-                        end                        
+                        end
+                        diag_k <= diag_k + 1;
                     end else if (fpu_add_ik_ready_p) begin
                         diag_trans_sum <= fpu_add_ik_out;
-                        if (diag_k == trav_i - 1) begin // Whether multiply-accumulate (MAC) operations should be concluded.
+                        if (diag_k == trav_i) begin // Whether multiply-accumulate (MAC) operations should be concluded.
                             // If MAC operations are done, diag_trans_sum holds final MAC-ed value 
                             // for given iteration.
                             //     l_ii = sqrt(a_ii - MAC_sum))
@@ -580,7 +586,7 @@ module cholesky #(parameter SIZE = 4) (
         .enable    (en_fpu_sumsqrt_ik),
         .rmode     (ROUND),
         .fpu_op    (FPU_OP_ADD),
-        .opa       (diag_trans_sum | (1 << 63)), // -(MAC_sum)
+        .opa       ({~diag_trans_sum[63], diag_trans_sum[62:0]}), // -(MAC_sum)
         .opb       (diag_aii), // a_ii (i from Traversal)
         .out       (fpu_add_diag_out), // a_ii - MAC_sum
         .ready     (fpu_add_diag_ready),
@@ -590,7 +596,7 @@ module cholesky #(parameter SIZE = 4) (
         .exception (),
         .invalid   ()
         );
-    sqrt sqrt_diag_ii (
+    sqrt #(.ITER(4)) sqrt_diag_ii (
         .y      (sqrt_diag_y), // l_ii = sqrt(a_ii - MAC_sum) (i from Traversal)
         .ready  (sqrt_diag_ready),
         .x      (fpu_add_diag_out), // a_ii - MAC_sum
@@ -607,6 +613,13 @@ module cholesky #(parameter SIZE = 4) (
             sr_fpu_mul_ijk_ready <= 0;
             sr_fpu_add_ijk_ready <= 0;
             sr_fpu_div_offdiag_ready <= 0;
+            sr_ready_diag <= 0;
+            sr_ready_offdiag <= 0;
+            sr_sqrt_ready_a11 <= 0;
+            sr_fpu_mul_22_ready <= 0;
+            sr_fpu_add_22_ready <= 0;
+            sr_ready_li2 <= 0;
+            sr_en_trav <= 0;
         end else begin
             sr_fpu_add_ik_ready <= {sr_fpu_add_ik_ready[0], fpu_add_ik_ready};
             sr_fpu_mul_ik_ready <= {sr_fpu_mul_ik_ready[0], fpu_mul_ik_ready};
@@ -614,6 +627,13 @@ module cholesky #(parameter SIZE = 4) (
             sr_fpu_mul_ijk_ready <= {sr_fpu_mul_ijk_ready[0], fpu_mul_ijk_ready};
             sr_fpu_add_ijk_ready <= {sr_fpu_add_ijk_ready[0], fpu_add_ijk_ready};
             sr_fpu_div_offdiag_ready <= {sr_fpu_div_offdiag_ready[0], fpu_div_offdiag_ready};
+            sr_ready_diag <= {sr_ready_diag[0], ready_diag};
+            sr_ready_offdiag <= {sr_ready_offdiag[0], ready_offdiag};
+            sr_sqrt_ready_a11 <= {sr_sqrt_ready_a11[0], sqrt_ready_a11};
+            sr_fpu_mul_22_ready <= {sr_fpu_mul_22_ready[0], fpu_mul_22_ready};
+            sr_fpu_add_22_ready <= {sr_fpu_add_22_ready[0], fpu_add_22_ready};
+            sr_en_trav <= {sr_en_trav[0], en_trav};
+            sr_ready_li2 <= {sr_ready_li2[0], ready_li2};
         end
     end
 
@@ -623,6 +643,28 @@ module cholesky #(parameter SIZE = 4) (
     assign fpu_mul_ijk_ready_p = ~sr_fpu_mul_ijk_ready[1] & fpu_mul_ijk_ready;
     assign fpu_add_ijk_ready_p = ~sr_fpu_add_ijk_ready[1] & fpu_add_ijk_ready;
     assign fpu_div_offdiag_ready_p = ~sr_fpu_div_offdiag_ready[1] & fpu_div_offdiag_ready;
+    assign ready_diag_p = ~sr_ready_diag[1] & ready_diag;
+    assign ready_offdiag_p = ~sr_ready_offdiag[1] & ready_offdiag;
+    assign sqrt_ready_a11_p = ~sr_sqrt_ready_a11[1] & sqrt_ready_a11;
+    assign fpu_mul_22_ready_p = ~sr_fpu_mul_22_ready[1] & fpu_mul_22_ready;
+    assign fpu_add_22_ready_p = ~sr_fpu_add_22_ready[1] & fpu_add_22_ready;
+    assign en_trav_p = ~sr_en_trav[1] & en_trav;
+    assign ready_li2_p = ~sr_ready_li2[1] & ready_li2;
+
+    generate
+        genvar z1;
+        for (z1 = 0; z1 < SIZE-1; z1 = z1 + 1) begin
+            localparam IND_Z1 = (z1*2);
+            always @(negedge clk) begin
+                if (rst) begin
+                    sr_fpu_i1_ready <= 0;
+                end else begin
+                    sr_fpu_i1_ready[IND_Z1+1:IND_Z1] <= {sr_fpu_i1_ready[IND_Z1], fpu_i1_ready[z1]};
+                end
+            end
+            assign fpu_i1_ready_p = ~sr_fpu_i1_ready[IND_Z1+1] & fpu_i1_ready[z1];
+        end
+    endgenerate
 
     // Array for l_i,2 computation (i > 2).
     // l_i,2 = (a_i,2 - l_21 * l_i,1) / l_22
@@ -636,6 +678,7 @@ module cholesky #(parameter SIZE = 4) (
             localparam IND_I2_ADDO = ((i2-2)*64);
             localparam IND_I2_DIVB = ((SIZE + 1)*64);
             localparam IND_I2_DIVO = ((i2*SIZE + 1)*64);
+
             fpu fpu_mul_i2 (
                 .clk       (clk),
                 .rst       (rst),
@@ -652,7 +695,6 @@ module cholesky #(parameter SIZE = 4) (
                 .exception (),
                 .invalid   ()
                 );
-
             fpu fpu_add_i2 (
                 .clk       (clk),
                 .rst       (rst),
@@ -660,7 +702,7 @@ module cholesky #(parameter SIZE = 4) (
                 .rmode     (ROUND),
                 .fpu_op    (FPU_OP_ADD),
                 .opa       (matrix[IND_I2_ADDA+63:IND_I2_ADDA]), // a_i,2
-                .opb       (fpu_mul_i2_out[IND_I2_MULO+63:IND_I2_MULO] | (1 << 63)), // -(l_21 * l_i,1)
+                .opb       ({~fpu_mul_i2_out[IND_I2_MULO+63], fpu_mul_i2_out[IND_I2_MULO+62:IND_I2_MULO]}), // -(l_21 * l_i,1)
                 .out       (fpu_add_i2_out[IND_I2_ADDO+63:IND_I2_ADDO]), // a_i,2 - l_21 * l_i,1
                 .ready     (fpu_add_i2_ready[i2-2]),
                 .underflow (),
@@ -669,7 +711,6 @@ module cholesky #(parameter SIZE = 4) (
                 .exception (),
                 .invalid   ()
                 );
-
             fpu fpu_div_i2 (
                 .clk       (clk),
                 .rst       (rst),
