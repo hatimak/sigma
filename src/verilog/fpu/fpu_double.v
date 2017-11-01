@@ -76,7 +76,11 @@ reg			op_enable;
 reg [63:0]	out;
 reg [6:0] 	count_cycles;
 reg [6:0]	count_ready;
-wire		count_busy = (count_ready <= count_cycles);
+reg			first_call; // Hack to fix issue with ready signal going automatically high 
+						// after reset. first_call acts like a switch that is grounded 
+						// the moment an enable is received, so it prevents any unsought 
+						// ready from being supplied (cf. count_busy definition below).
+wire		count_busy = (count_ready <= count_cycles) | first_call;
 reg			ready;
 reg			ready_0;
 reg			ready_1;
@@ -219,11 +223,13 @@ end
 
 always @ (posedge clk)
 begin
-	if (rst)
+	if (rst) begin
 		count_ready <= 0;
-	else if (enable_reg_1) 
+		first_call <= 1;
+	end else if (enable_reg_1) begin
 		count_ready <= 0;
-	else if (count_busy)
+		first_call <= 0;
+	end else if (count_busy)
 		count_ready <= count_ready + 1; 
 end
 
