@@ -28,6 +28,10 @@ cholesky: cholesky.v ../../src/verilog/matrix/cholesky.v ../../src/verilog/ancil
 	$(CC) -o cholesky.out cholesky.v ../../src/verilog/matrix/cholesky.v ../../src/verilog/ancillary/sqrt.v $(FPU_SRC)
 	vvp cholesky.out
 
+rng_uni: rng_uni.v ../../src/verilog/rng/uniform/rng_uni.v ../../src/verilog/rng/uniform/rng_uni_sr.v
+	$(CC) -o rng_uni.out rng_uni.v ../../src/verilog/rng/uniform/rng_uni.v ../../src/verilog/rng/uniform/rng_uni_sr.v
+	vvp rng_uni.out
+
 .PHONY: clean
 
 clean:
