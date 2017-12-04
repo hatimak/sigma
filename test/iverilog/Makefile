@@ -1,12 +1,20 @@
 CC=iverilog
 
 FPU_SRC=../../src/verilog/fpu/fpu_double.v \
-		../../src/verilog/fpu/fpu_add.v \
-		../../src/verilog/fpu/fpu_sub.v \
-		../../src/verilog/fpu/fpu_mul.v \
-		../../src/verilog/fpu/fpu_div.v \
-		../../src/verilog/fpu/fpu_exceptions.v \
-		../../src/verilog/fpu/fpu_round.v
+	../../src/verilog/fpu/fpu_add.v \
+	../../src/verilog/fpu/fpu_sub.v \
+	../../src/verilog/fpu/fpu_mul.v \
+	../../src/verilog/fpu/fpu_div.v \
+	../../src/verilog/fpu/fpu_exceptions.v \
+	../../src/verilog/fpu/fpu_round.v
+
+GNG_SRC=../../src/verilog/rng/gaussian/gng_coef.v \
+	../../src/verilog/rng/gaussian/gng_ctg.v \
+	../../src/verilog/rng/gaussian/gng_interp.v \
+	../../src/verilog/rng/gaussian/gng_lzd.v \
+	../../src/verilog/rng/gaussian/gng_smul_16_18_sadd_37.v \
+	../../src/verilog/rng/gaussian/gng_smul_16_18.v \
+	../../src/verilog/rng/gaussian/gng.v
 
 fpu: fpu.v $(FPU_SRC)
 	$(CC) -o fpu.out fpu.v $(FPU_SRC)
@@ -31,6 +39,10 @@ cholesky: cholesky.v ../../src/verilog/matrix/cholesky.v ../../src/verilog/ancil
 rng_uni: rng_uni.v ../../src/verilog/rng/uniform/rng_uni.v ../../src/verilog/rng/uniform/rng_uni_sr.v
 	$(CC) -o rng_uni.out rng_uni.v ../../src/verilog/rng/uniform/rng_uni.v ../../src/verilog/rng/uniform/rng_uni_sr.v
 	vvp rng_uni.out
+
+rng_gau: gng.v $(GNG_SRC)
+	$(CC) -o rng_gau.out gng.v $(GNG_SRC)
+	vvp rng_gau.out
 
 .PHONY: clean
 
