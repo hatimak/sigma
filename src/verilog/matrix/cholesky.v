@@ -3,6 +3,11 @@
  *   - diagonal compute, and
  *   - off-diagonal compute.
  *
+ * Parameter description -
+ *   - SIZE:     Input square matrix size
+ *   - ACCURACY: Control number of iterations in square root block, quadratic function
+ *                 ITER = (ACCURACY)^2 + ACCURACY + 1
+ *
  * TODO -
  *   1. Handle underflow, overflow, inexact, exception and invalid signals.
  *   2. Improve wire, reg, etc. definitions clearer (currently all definitions look very chaotic).
@@ -15,7 +20,7 @@
  *   - https://rosettacode.org/wiki/Cholesky_decomposition (gives general formulae for computation)
  */
 
-module cholesky #(parameter SIZE = 4) (
+module cholesky #(parameter SIZE = 4, parameter ACCURACY = 2) (
     output wire [(SIZE*SIZE*64)-1:0] factor, // Cholesky factor, lower triangular n x n matrix (elements referred as l_ij below in comments).
     output wire                      ready,
     input wire [(SIZE*SIZE*64)-1:0]  matrix, // Symmetric, positive definite n x n matrix (elements referred as a_ij below in comments).
@@ -79,7 +84,7 @@ module cholesky #(parameter SIZE = 4) (
     reg [2:0]                tmr_fpu_mul_ijk, tmr_fpu_add_ijk, tmr_fpu_sumdiv_ijk;
     reg [7:0]                trav_i, trav_j, diag_k, offdiag_k; // 8-bit wide should limit SIZE to a maximum of 256.
 
-    sqrt #(.ITER(5)) sqrt_a11 (
+    sqrt #(.ITER(ACCURACY*ACCURACY + ACCURACY + 1)) sqrt_a11 (
         .y      (factor[63:0]), // l_11 = sqrt(a_11)
         .ready  (sqrt_ready_a11),
         .x      (matrix[63:0]), // a_11
@@ -147,7 +152,7 @@ module cholesky #(parameter SIZE = 4) (
         .exception (),
         .invalid   ()
         );
-    sqrt #(.ITER(5)) sqrt_22 (
+    sqrt #(.ITER(ACCURACY*ACCURACY + ACCURACY + 1)) sqrt_22 (
         .y      (factor[((SIZE+1)*64)+63:(SIZE+1)*64]), // l_22
         .ready  (sqrt_22_ready),
         .x      (fpu_add_22_out), // a_22 - l_21 * l_21
@@ -160,8 +165,8 @@ module cholesky #(parameter SIZE = 4) (
     assign en_trav = &fpu_i1_ready & sqrt_22_ready;
 
     // Traversal machine, triggered by en_trav_p.
-    always @(posedge clk or negedge clk) begin
-        if (rst && clk) begin
+    always @(posedge clk) begin
+        if (rst) begin
             state_trav <= S_T_IDLE;
             en_i2 <= 0;
             tmr_i2 <= 0;
@@ -172,7 +177,7 @@ module cholesky #(parameter SIZE = 4) (
             ready_trav <= 0;
             trav_i <= 0;
             trav_j <= 0;
-        end else if (!rst && clk) begin
+        end else begin
             case (state_trav)
                 S_T_IDLE: begin
                     if (en_trav_p) begin
@@ -232,7 +237,7 @@ module cholesky #(parameter SIZE = 4) (
                     end
                 end
             endcase
-        end else if (!rst && !clk) begin
+
             // Manage timers and enable triggers.
             if (tmr_i2 != 0 && en_i2) begin
                 tmr_i2 <= tmr_i2 - 1;
@@ -265,8 +270,8 @@ module cholesky #(parameter SIZE = 4) (
     //         i, j correspond to trav_i, trav_j respectively and are set by Traversal 
     //         so both are effectively constants for a single run of Off-diagonal.
     // It can be noted that the off-diagonal and diagonal element computations are very similar.
-    always @(posedge clk or negedge clk) begin
-        if (rst && clk) begin
+    always @(posedge clk) begin
+        if (rst) begin
             // Do initialisations.
             offdiag_k <= 0;
             offdiag_trans_sum <= 0;
@@ -285,7 +290,7 @@ module cholesky #(parameter SIZE = 4) (
             offdiag_ljj <= 0;
             ready_offdiag <= 0;
             state_offdiag <= S_O_IDLE;
-        end else if (!rst && clk) begin
+        end else begin
             case (state_offdiag)
                 S_O_IDLE: begin
                     if (en_offdiag) begin
@@ -350,7 +355,7 @@ module cholesky #(parameter SIZE = 4) (
                     end
                 end
             endcase
-        end else if (!rst && !clk) begin
+
             // Manage timers and enable triggers.
             if (tmr_fpu_mul_ijk != 0 && en_fpu_mul_ijk) begin
                 tmr_fpu_mul_ijk <= tmr_fpu_mul_ijk - 1;
@@ -443,8 +448,8 @@ module cholesky #(parameter SIZE = 4) (
         );
 
     // Diagonal machine, triggered by en_diag. trav_i is fixed by Traversal for a single run of Diagonal machine.
-    always @(posedge clk or negedge clk) begin
-        if (rst && clk) begin
+    always @(posedge clk) begin
+        if (rst) begin
             // Do initialisations.
             diag_k <= 0;
             diag_trans_sum <= 0;
@@ -461,7 +466,7 @@ module cholesky #(parameter SIZE = 4) (
             diag_aii <= 0;
             ready_diag <= 0;
             state_diag <= S_D_IDLE;
-        end else if (!rst && clk) begin
+        end else begin
             case (state_diag)
                 S_D_IDLE: begin
                     if (en_diag) begin
@@ -524,7 +529,7 @@ module cholesky #(parameter SIZE = 4) (
                     end
                 end
             endcase
-        end else if (!rst && !clk) begin
+
             // Manage timers and enable triggers.
             if (tmr_fpu_mul_ik != 0 && en_fpu_mul_ik) begin
                 tmr_fpu_mul_ik <= tmr_fpu_mul_ik - 1;
@@ -599,7 +604,7 @@ module cholesky #(parameter SIZE = 4) (
         .exception (),
         .invalid   ()
         );
-    sqrt #(.ITER(5)) sqrt_diag_ii (
+    sqrt #(.ITER(ACCURACY*ACCURACY + ACCURACY + 1)) sqrt_diag_ii (
         .y      (sqrt_diag_y), // l_ii = sqrt(a_ii - MAC_sum) (i from Traversal)
         .ready  (sqrt_diag_ready),
         .x      (fpu_add_diag_out), // a_ii - MAC_sum
@@ -666,12 +671,12 @@ module cholesky #(parameter SIZE = 4) (
             localparam IND_Z1 = (z1*2);
             always @(negedge clk) begin
                 if (rst) begin
-                    sr_fpu_i1_ready <= 0;
+                    sr_fpu_i1_ready[IND_Z1+1:IND_Z1] <= 0;
                 end else begin
                     sr_fpu_i1_ready[IND_Z1+1:IND_Z1] <= {sr_fpu_i1_ready[IND_Z1], fpu_i1_ready[z1]};
                 end
             end
-            assign fpu_i1_ready_p = ~sr_fpu_i1_ready[IND_Z1+1] & fpu_i1_ready[z1];
+            assign fpu_i1_ready_p[z1] = ~sr_fpu_i1_ready[IND_Z1+1] & fpu_i1_ready[z1];
         end
     endgenerate
 
@@ -777,3 +782,4 @@ module cholesky #(parameter SIZE = 4) (
     endgenerate
 
 endmodule
+

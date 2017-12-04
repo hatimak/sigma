@@ -59,7 +59,7 @@ module sqrt #(parameter ITER = 2) (
         .invalid   ()
         );
 
-    always @(posedge clk or negedge clk) begin
+    always @(posedge clk) begin
         if (rst && clk) begin
             // Do initialisations.
             tmr <= 0;
@@ -71,7 +71,7 @@ module sqrt #(parameter ITER = 2) (
             n_iter <= 0;
             ready <= 0;
             state <= S_IDLE;
-        end else if (!rst && clk) begin
+        end else begin
             case (state)
                 S_IDLE: begin
                     if (enable) begin
@@ -164,7 +164,6 @@ module sqrt #(parameter ITER = 2) (
                     end
                 end
             endcase
-        end else if (!rst && !clk) begin
             // Manage timers and enable triggers.
             if (tmr != 0 && fpu_en) begin
                 tmr <= tmr - 1;
