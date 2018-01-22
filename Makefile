@@ -9,5 +9,5 @@ setup_vivado : ./vivado/.setup.done
 	vivado -mode batch -source ./scripts/setup.tcl -log ./vivado/setup.log -jou ./vivado/setup.jou
 
 clean :	
-	rm -rf vivado *.log *.jou
+	rm -rf vivado/* *.log *.jou ./vivado/.setup.done
 

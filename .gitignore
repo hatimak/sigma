@@ -8,7 +8,6 @@
 *.out
 *.o
 .DS_Store
-build
-fusesoc.log
 ieee754
+vivado
 
