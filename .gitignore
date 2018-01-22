@@ -10,4 +10,6 @@
 .DS_Store
 vivado
 *.lock
+ieee754
+ieee754_hex
 
