@@ -9,4 +9,5 @@
 *.o
 .DS_Store
 vivado
+*.lock
 
