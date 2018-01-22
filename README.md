@@ -13,6 +13,10 @@ distribution by deterministically "sampling" support points (called sigma
 points) and assigning weight to each of these points. The mean and covariance 
 can then be computed based on the statistics of these "sigma" points.
 
+The implementation uses proprietary Xilinx IP for now and they come with 
+their own set of copyright notices. The aim is to move away from proprietary 
+IP and switch to open-source alternatives.
+
 This work is done, under the supervision of Dr Shovan Bhaumik (Associate 
 Professor, Dept of Electrical Engineering, Indian Institute of Technology 
 Patna), for the partial fulfilment of requirements towards the award 
