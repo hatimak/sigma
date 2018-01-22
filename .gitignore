@@ -8,6 +8,8 @@
 *.out
 *.o
 .DS_Store
-ieee754
 vivado
+*.lock
+ieee754
+ieee754_hex
 
