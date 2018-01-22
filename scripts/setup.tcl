@@ -19,12 +19,20 @@ set_property "target_language" "Verilog" $obj
 set_property coreContainer.enable 1 $obj
 
 add_files -norecurse $hdlRoot/pe_time_proc.v
+add_files -norecurse $hdlRoot/pe_meas_proc.v
+
 add_files -norecurse $ipRoot/pe_time/pe_time_ip_add.xcix
 add_files -norecurse $ipRoot/pe_time/pe_time_ip_mult_dsp.xcix
 add_files -norecurse $ipRoot/pe_time/pe_time_ip_sub.xcix
 add_files -norecurse $ipRoot/pe_time/pe_time_ip_div.xcix
 add_files -norecurse $ipRoot/pe_time/pe_time_ip_sub_const.xcix
 add_files -norecurse $ipRoot/pe_time/pe_time_ip_trig.xcix
+add_files -norecurse $ipRoot/pe_meas/pe_meas_ip_add_long.xcix
+add_files -norecurse $ipRoot/pe_meas/pe_meas_ip_shift_ram.xcix
+add_files -norecurse $ipRoot/pe_meas/pe_meas_ip_sqrt.xcix
+add_files -norecurse $ipRoot/pe_meas/pe_meas_ip_arctan.xcix
+add_files -norecurse $ipRoot/pe_meas/pe_meas_ip_shift_valid.xcix
+add_files -norecurse $ipRoot/pe_meas/pe_meas_ip_square.xcix
 
 update_compile_order -fileset sources_1
 set_property SOURCE_SET sources_1 [get_filesets sim_1]
