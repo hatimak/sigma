@@ -1,0 +1,20 @@
+# backup files
+*~
+*.swp
+*.orig
+*.bak
+\#*\#
+*.vcd
+*.out
+*.o
+.DS_Store
+vivado
+*.lock
+ieee754
+ieee754_hex
+*.log
+*.jou
+*.done
+
+*.xcix
+
