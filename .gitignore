@@ -8,13 +8,7 @@
 *.out
 *.o
 .DS_Store
-vivado
-*.lock
+build
+fusesoc.log
 ieee754
-ieee754_hex
-*.log
-*.jou
-*.done
-
-*.xcix
 
