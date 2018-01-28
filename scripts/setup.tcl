@@ -17,10 +17,13 @@ set_property "board_part" "digilentinc.com:nexys4_ddr:part0:1.1" $obj
 set_property "simulator_language" "Mixed" $obj
 set_property "target_language" "Verilog" $obj
 set_property coreContainer.enable 1 $obj
+config_ip_cache -disable_cache
+update_ip_catalog
 
 add_files -norecurse $hdlRoot/pe_time_proc.v
 add_files -norecurse $hdlRoot/pe_meas_proc.v
 add_files -norecurse $hdlRoot/pe_matrix_expectation_comb.v
+add_files -norecurse $hdlRoot/cholesky.v
 
 add_files -norecurse $ipRoot/pe_time_ip_add.xcix
 add_files -norecurse $ipRoot/pe_time_ip_mult_dsp.xcix
@@ -35,6 +38,9 @@ add_files -norecurse $ipRoot/pe_meas_ip_arctan.xcix
 add_files -norecurse $ipRoot/pe_meas_ip_shift_valid.xcix
 add_files -norecurse $ipRoot/pe_meas_ip_square.xcix
 add_files -norecurse $ipRoot/pe_matrix_ip_mac.xcix
+add_files -norecurse $ipRoot/cholesky_ip_sqrt.xcix
+add_files -norecurse $ipRoot/cholesky_ip_div.xcix
+add_files -norecurse $ipRoot/cholesky_ip_sub.xcix
 
 update_compile_order -fileset sources_1
 
@@ -44,6 +50,8 @@ add_files -fileset sim_1 -norecurse $tbRoot/tb_pe_meas_proc.v
 add_files -fileset sim_1 -norecurse $tbRoot/tb_matrix_expectation_comb.v
 
 update_compile_order -fileset sim_1
+
+set_property STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE true [get_runs impl_1]
 
 # If successful, "touch" a file so the make utility will know it's done 
 touch {.setup_vivado.done}

@@ -258,6 +258,63 @@ set_property -dict [list \
 generate_target all [get_files pe_time_ip_trig.xci]
 # ------------------------------------------------------------------------------
 
+# cholesky_ip_sqrt
+# ----------------
+create_ip -name cordic -vendor xilinx.com -library ip -version 6.0 -module_name cholesky_ip_sqrt -dir $ipDir
+
+set_property -dict [list \
+	CONFIG.Component_Name {cholesky_ip_sqrt} \
+	CONFIG.Functional_Selection {Square_Root} \
+	CONFIG.Pipelining_Mode {Optimal} \
+	CONFIG.Input_Width {31} \
+	CONFIG.Output_Width {24} \
+	CONFIG.Round_Mode {Nearest_Even} \
+	CONFIG.ACLKEN {true} \
+	CONFIG.Data_Format {UnsignedFraction} \
+	CONFIG.Coarse_Rotation {false} \
+	CONFIG.Compensation_Scaling {No_Scale_Compensation} \
+] [get_ips cholesky_ip_sqrt]
+
+
+generate_target all [get_files cholesky_ip_sqrt.xci]
+# ------------------------------------------------------------------------------
+
+# cholesky_ip_div
+# ---------------
+create_ip -name div_gen -vendor xilinx.com -library ip -version 5.1 -module_name cholesky_ip_div -dir $ipDir
+
+set_property -dict [list \
+	CONFIG.Component_Name {cholesky_ip_div} \
+	CONFIG.dividend_and_quotient_width {32} \
+	CONFIG.divisor_width {32} \
+	CONFIG.remainder_type {Fractional} \
+	CONFIG.fractional_width {17} \
+	CONFIG.latency_configuration {Manual} \
+	CONFIG.latency {26} \
+	CONFIG.ACLKEN {true} \
+] [get_ips cholesky_ip_div]
+
+generate_target all [get_files cholesky_ip_sqrt.xci]
+# ------------------------------------------------------------------------------
+
+# cholesky_ip_sub
+# ---------------
+create_ip -name c_addsub -vendor xilinx.com -library ip -version 12.0 -module_name cholesky_ip_sub -dir $ipDir
+
+set_property -dict [list \
+	CONFIG.Implementation {DSP48} \
+	CONFIG.A_Width {32} \
+	CONFIG.B_Width {32} \
+	CONFIG.Add_Mode {Subtract} \
+	CONFIG.CE {false} \
+	CONFIG.Out_Width {32} \
+	CONFIG.Latency {1} \
+	CONFIG.B_Value {00000000000000000000000000000000} \
+] [get_ips cholesky_ip_sub]
+
+generate_target all [get_files cholesky_ip_sub.xci]
+# ------------------------------------------------------------------------------
+
 # Export IP user files
 # ====================
 
@@ -274,6 +331,9 @@ export_ip_user_files -of_objects [get_files pe_time_ip_mult_dsp.xci] -no_script 
 export_ip_user_files -of_objects [get_files pe_time_ip_sub.xci] -no_script -ip_user_files_dir ./vivado/ip_user_files -sync -force -quiet
 export_ip_user_files -of_objects [get_files pe_time_ip_sub_const.xci] -no_script -ip_user_files_dir ./vivado/ip_user_files -sync -force -quiet
 export_ip_user_files -of_objects [get_files pe_time_ip_trig.xci] -no_script -ip_user_files_dir ./vivado/ip_user_files -sync -force -quiet
+export_ip_user_files -of_objects [get_files cholesky_ip_sqrt.xci] -no_script -ip_user_files_dir ./vivado/ip_user_files -sync -force -quiet
+export_ip_user_files -of_objects [get_files cholesky_ip_div.xci] -no_script -ip_user_files_dir ./vivado/ip_user_files -sync -force -quiet
+export_ip_user_files -of_objects [get_files cholesky_ip_sub.xci] -no_script -ip_user_files_dir ./vivado/ip_user_files -sync -force -quiet
 
 # ------------------------------------------------------------------------------
 
@@ -293,6 +353,9 @@ create_ip_run [get_files -of_objects [get_fileset sources_1] [get_files */pe_tim
 create_ip_run [get_files -of_objects [get_fileset sources_1] [get_files */pe_time_ip_sub.xci]]
 create_ip_run [get_files -of_objects [get_fileset sources_1] [get_files */pe_time_ip_sub_const.xci]]
 create_ip_run [get_files -of_objects [get_fileset sources_1] [get_files */pe_time_ip_trig.xci]]
+create_ip_run [get_files -of_objects [get_fileset sources_1] [get_files */cholesky_ip_sqrt.xci]]
+create_ip_run [get_files -of_objects [get_fileset sources_1] [get_files */cholesky_ip_div.xci]]
+create_ip_run [get_files -of_objects [get_fileset sources_1] [get_files */cholesky_ip_sub.xci]]
 
 launch_runs -jobs 4 pe_matrix_ip_mac_synth_1
 wait_on_run pe_matrix_ip_mac_synth_1
@@ -332,6 +395,15 @@ wait_on_run pe_time_ip_sub_const_synth_1
 
 launch_runs -jobs 4 pe_time_ip_trig_synth_1
 wait_on_run pe_time_ip_trig_synth_1
+
+launch_runs -jobs 4 cholesky_ip_sqrt_synth_1
+wait_on_run cholesky_ip_sqrt_synth_1
+
+launch_runs -jobs 4 cholesky_ip_div_synth_1
+wait_on_run cholesky_ip_div_synth_1
+
+launch_runs -jobs 4 cholesky_ip_sub_synth_1
+wait_on_run cholesky_ip_sub_synth_1
 # ------------------------------------------------------------------------------
 
 # Export Simulations
@@ -350,6 +422,9 @@ export_simulation -of_objects [get_files pe_time_ip_mult_dsp.xci] -directory ./v
 export_simulation -of_objects [get_files pe_time_ip_sub.xci] -directory ./vivado/ip_user_files/sim_scripts -ip_user_files_dir ./vivado/ip_user_files -ipstatic_source_dir ./vivado/ip_user_files/ipstatic -use_ip_compiled_libs -force -quiet
 export_simulation -of_objects [get_files pe_time_ip_sub_const.xci] -directory ./vivado/ip_user_files/sim_scripts -ip_user_files_dir ./vivado/ip_user_files -ipstatic_source_dir ./vivado/ip_user_files/ipstatic -use_ip_compiled_libs -force -quiet
 export_simulation -of_objects [get_files pe_time_ip_trig.xci] -directory ./vivado/ip_user_files/sim_scripts -ip_user_files_dir ./vivado/ip_user_files -ipstatic_source_dir ./vivado/ip_user_files/ipstatic -use_ip_compiled_libs -force -quiet
+export_simulation -of_objects [get_files cholesky_ip_sqrt.xci] -directory ./vivado/ip_user_files/sim_scripts -ip_user_files_dir ./vivado/ip_user_files -ipstatic_source_dir ./vivado/ip_user_files/ipstatic -use_ip_compiled_libs -force -quiet
+export_simulation -of_objects [get_files cholesky_ip_div.xci] -directory ./vivado/ip_user_files/sim_scripts -ip_user_files_dir ./vivado/ip_user_files -ipstatic_source_dir ./vivado/ip_user_files/ipstatic -use_ip_compiled_libs -force -quiet
+export_simulation -of_objects [get_files cholesky_ip_sub.xci] -directory ./vivado/ip_user_files/sim_scripts -ip_user_files_dir ./vivado/ip_user_files -ipstatic_source_dir ./vivado/ip_user_files/ipstatic -use_ip_compiled_libs -force -quiet
 # ------------------------------------------------------------------------------
 
 # If successful, "touch" a file so the make utility will know it's done
