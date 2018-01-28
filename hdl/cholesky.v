@@ -521,10 +521,10 @@ module cholesky (
      * ------------------------
      */
 
-    assign sqrt_data = (count == COL_1_LATENCY + PRE_LATENCY ||
-                        count == COL_2_LATENCY + PRE_LATENCY ||
-                        count == COL_3_LATENCY + PRE_LATENCY ||
-                        count == COL_4_LATENCY + PRE_LATENCY) ? pre_sub_sq_out : A_11;
+    assign sqrt_data = (count == COL_1_LATENCY + PRE_LATENCY || count == COL_1_LATENCY + PRE_LATENCY + 1 ||
+                        count == COL_2_LATENCY + PRE_LATENCY || count == COL_2_LATENCY + PRE_LATENCY + 1 ||
+                        count == COL_3_LATENCY + PRE_LATENCY || count == COL_3_LATENCY + PRE_LATENCY + 1 ||
+                        count == COL_4_LATENCY + PRE_LATENCY || count == COL_4_LATENCY + PRE_LATENCY + 1) ? pre_sub_sq_out : A_11;
 
     assign div_1_dividend = (count == SQRT_LATENCY) ? A_21 : pre_sub_1_out;
     assign div_2_dividend = (count == SQRT_LATENCY) ? A_31 : pre_sub_2_out;
@@ -567,14 +567,14 @@ module cholesky (
                       (count == COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY) ? div_2_out :
                       (count == COL_3_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY) ? div_1_out : {32{1'b0}};
 
-    assign pre_sub_sq_a = (count == COL_1_LATENCY) ? A_22 :
-                          (count == COL_2_LATENCY) ? A_33 :
-                          (count == COL_3_LATENCY) ? A_44 :
-                          (count == COL_4_LATENCY) ? A_55 : {32{1'b0}};
-    assign pre_sub_sq_b = (count == COL_1_LATENCY) ? run_sum_22[47 : 16] :
-                          (count == COL_2_LATENCY) ? run_sum_33[47 : 16] :
-                          (count == COL_3_LATENCY) ? run_sum_44[47 : 16] :
-                          (count == COL_4_LATENCY) ? run_sum_55[47 : 16] : {32{1'b0}};
+    assign pre_sub_sq_a = (count == COL_1_LATENCY || count == COL_1_LATENCY + 1) ? A_22 :
+                          (count == COL_2_LATENCY || count == COL_2_LATENCY + 1) ? A_33 :
+                          (count == COL_3_LATENCY || count == COL_3_LATENCY + 1) ? A_44 :
+                          (count == COL_4_LATENCY || count == COL_4_LATENCY + 1) ? A_55 : {32{1'b0}};
+    assign pre_sub_sq_b = (count == COL_1_LATENCY || count == COL_1_LATENCY + 1) ? run_sum_22[47 : 16] :
+                          (count == COL_2_LATENCY || count == COL_2_LATENCY + 1) ? run_sum_33[47 : 16] :
+                          (count == COL_3_LATENCY || count == COL_3_LATENCY + 1) ? run_sum_44[47 : 16] :
+                          (count == COL_4_LATENCY || count == COL_4_LATENCY + 1) ? run_sum_55[47 : 16] : {32{1'b0}};
 
     assign pre_sub_1_a  = (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY) ? A_32 :
                           (count == COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY) ? A_43 :

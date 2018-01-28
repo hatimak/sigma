@@ -48,6 +48,7 @@ set_property SOURCE_SET sources_1 [get_filesets sim_1]
 add_files -fileset sim_1 -norecurse $tbRoot/tb_pe_time_proc.v
 add_files -fileset sim_1 -norecurse $tbRoot/tb_pe_meas_proc.v
 add_files -fileset sim_1 -norecurse $tbRoot/tb_matrix_expectation_comb.v
+add_files -fileset sim_1 -norecurse $tbRoot/tb_cholesky.v
 
 update_compile_order -fileset sim_1
 
