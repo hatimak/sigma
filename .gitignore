@@ -12,6 +12,7 @@ vivado
 *.lock
 ieee754
 ieee754_hex
+fix2dec
 *.log
 *.jou
 *.done
