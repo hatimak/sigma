@@ -131,6 +131,18 @@ module cholesky (
         end
     end
 
+    always @(posedge clk) begin
+        if (rst) begin
+            L_valid <= 1'b0;
+        end else begin
+            if (count == CHOL_LATENCY) begin
+                L_valid <= 1'b1;
+            end else begin
+                L_valid <= 1'b0;
+            end
+        end
+    end
+
 // ================================================================================
     /* Square root module
      * ------------------
