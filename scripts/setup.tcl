@@ -55,5 +55,5 @@ update_compile_order -fileset sim_1
 set_property STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE true [get_runs impl_1]
 
 # If successful, "touch" a file so the make utility will know it's done 
-touch {.setup_vivado.done}
+touch {./vivado/.setup_vivado.done}
 
