@@ -24,6 +24,7 @@ add_files -norecurse $hdlRoot/pe_time_proc.v
 add_files -norecurse $hdlRoot/pe_meas_proc.v
 add_files -norecurse $hdlRoot/pe_matrix_expectation_comb.v
 add_files -norecurse $hdlRoot/cholesky.v
+add_files -norecurse $hdlRoot/vector_scale_add.v
 
 add_files -norecurse $ipRoot/pe_time_ip_add.xcix
 add_files -norecurse $ipRoot/pe_time_ip_mult_dsp.xcix
@@ -41,6 +42,7 @@ add_files -norecurse $ipRoot/pe_matrix_ip_mac.xcix
 add_files -norecurse $ipRoot/cholesky_ip_sqrt.xcix
 add_files -norecurse $ipRoot/cholesky_ip_div.xcix
 add_files -norecurse $ipRoot/cholesky_ip_sub.xcix
+add_files -norecurse $ipRoot/vsad_ip_mac.xcix
 
 update_compile_order -fileset sources_1
 
@@ -49,6 +51,7 @@ add_files -fileset sim_1 -norecurse $tbRoot/tb_pe_time_proc.v
 add_files -fileset sim_1 -norecurse $tbRoot/tb_pe_meas_proc.v
 add_files -fileset sim_1 -norecurse $tbRoot/tb_matrix_expectation_comb.v
 add_files -fileset sim_1 -norecurse $tbRoot/tb_cholesky.v
+add_files -fileset sim_1 -norecurse $tbRoot/tb_vsad.v 
 
 update_compile_order -fileset sim_1
 
