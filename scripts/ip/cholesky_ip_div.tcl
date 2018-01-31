@@ -14,9 +14,10 @@ set_property -dict [list \
 	CONFIG.divisor_width {32} \
 	CONFIG.remainder_type {Fractional} \
 	CONFIG.fractional_width {17} \
-	CONFIG.latency_configuration {Manual} \
-	CONFIG.latency {26} \
+	CONFIG.latency_configuration {Automatic} \
+	CONFIG.latency {53} \
 	CONFIG.ACLKEN {true} \
+	CONFIG.ARESETN {true} \
 ] [get_ips cholesky_ip_div]
 
 generate_target all [get_files cholesky_ip_div.xci]

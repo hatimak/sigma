@@ -14,8 +14,8 @@ set_property -dict [list \
 	CONFIG.c_c_width {64} \
 	CONFIG.c_out_high {63} \
 	CONFIG.c_out_low {0} \
-	CONFIG.c_ab_latency {0} \
-	CONFIG.c_c_latency {0} \
+	CONFIG.c_ab_latency {-1} \
+	CONFIG.c_c_latency {-1} \
 ] [get_ips pe_matrix_ip_mac]
 
 generate_target all [get_files pe_matrix_ip_mac.xci]

@@ -11,11 +11,12 @@ create_ip -vlnv xilinx.com:ip:cordic:6.0 -module_name cholesky_ip_sqrt -dir $ipD
 set_property -dict [list \
 	CONFIG.Component_Name {cholesky_ip_sqrt} \
 	CONFIG.Functional_Selection {Square_Root} \
-	CONFIG.Pipelining_Mode {Optimal} \
+	CONFIG.Pipelining_Mode {Maximum} \
 	CONFIG.Input_Width {31} \
 	CONFIG.Output_Width {24} \
 	CONFIG.Round_Mode {Nearest_Even} \
 	CONFIG.ACLKEN {true} \
+	CONFIG.ARESETN {true} \
 	CONFIG.Data_Format {UnsignedFraction} \
 	CONFIG.Coarse_Rotation {false} \
 	CONFIG.Compensation_Scaling {No_Scale_Compensation} \
