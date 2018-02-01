@@ -22,7 +22,7 @@ module cholesky (
 
     localparam DIV_LATENCY   = 53;
     localparam SQRT_LATENCY  = 26;
-    localparam MAC_LATENCY   = 10; // This is always 1 more than actual MAC module latency
+    localparam MAC_LATENCY   = 9;
     localparam PRE_LATENCY   = 1;
 
     /* Computation of column 1 of Cholesky factor takes (SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) cycles
@@ -296,7 +296,7 @@ module cholesky (
         if (rst) begin
             run_sum_22 = {64{1'b0}};
         end else begin
-            if (count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY - 1) begin
+            if (count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) begin
                 run_sum_22 = mac_22_p;
             end
         end
@@ -318,7 +318,7 @@ module cholesky (
         if (rst) begin
             run_sum_32 = {64{1'b0}};
         end else begin
-            if (count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY - 1) begin
+            if (count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) begin
                 run_sum_32 = mac_32_p;
             end
         end
@@ -340,7 +340,7 @@ module cholesky (
         if (rst) begin
             run_sum_42 = {64{1'b0}};
         end else begin
-            if (count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY - 1) begin
+            if (count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) begin
                 run_sum_42 = mac_42_p;
             end
         end
@@ -362,7 +362,7 @@ module cholesky (
         if (rst) begin
             run_sum_52 = {64{1'b0}};
         end else begin
-            if (count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY - 1) begin
+            if (count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) begin
                 run_sum_52 = mac_52_p;
             end
         end
@@ -385,8 +385,8 @@ module cholesky (
         if (rst) begin
             run_sum_33 = {64{1'b0}};
         end else begin
-            if ((count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY - 1) ||
-                (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY - 1)) begin
+            if ((count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) ||
+                (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY)) begin
                 run_sum_33 = mac_33_p;
             end
         end
@@ -408,8 +408,8 @@ module cholesky (
         if (rst) begin
             run_sum_43 = {64{1'b0}};
         end else begin
-            if ((count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY - 1) ||
-                (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY - 1)) begin
+            if ((count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) ||
+                (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY)) begin
                 run_sum_43 = mac_43_p;
             end
         end
@@ -431,8 +431,8 @@ module cholesky (
         if (rst) begin
             run_sum_53 = {64{1'b0}};
         end else begin
-            if ((count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY - 1) ||
-                (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY - 1)) begin
+            if ((count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) ||
+                (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY)) begin
                 run_sum_53 = mac_53_p;
             end
         end
@@ -455,9 +455,9 @@ module cholesky (
         if (rst) begin
             run_sum_44 = {64{1'b0}};
         end else begin
-            if ((count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY - 1) ||
-                (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY - 1) ||
-                (count == COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY - 1)) begin
+            if ((count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) ||
+                (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY) ||
+                (count == COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY)) begin
                 run_sum_44 = mac_44_p;
             end
         end
@@ -479,9 +479,9 @@ module cholesky (
         if (rst) begin
             run_sum_54 = {64{1'b0}};
         end else begin
-            if ((count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY - 1) ||
-                (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY - 1) ||
-                (count == COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY - 1)) begin
+            if ((count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) ||
+                (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY) ||
+                (count == COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY)) begin
                 run_sum_54 = mac_54_p;
             end
         end
@@ -504,10 +504,10 @@ module cholesky (
         if (rst) begin
             run_sum_55 = {64{1'b0}};
         end else begin
-            if ((count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY - 1) ||
-                (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY - 1) ||
-                (count == COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY - 1) ||
-                (count == COL_3_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY - 1)) begin
+            if ((count == SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) ||
+                (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY) ||
+                (count == COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY) ||
+                (count == COL_3_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY + MAC_LATENCY)) begin
                 run_sum_55 = mac_55_p;
             end
         end
