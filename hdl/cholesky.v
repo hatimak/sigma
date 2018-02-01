@@ -66,7 +66,7 @@ module cholesky (
                   div_1_out, div_2_out, div_3_out, div_4_out,
                   div_divisor,
                   div_1_dividend, div_2_dividend, div_3_dividend, div_4_dividend,
-                  sqrt_data, sqrt_out,
+                  sqrt_data, sqrt_out_tt,
                   mac_22_a, mac_32_a, mac_32_b, mac_42_a, mac_42_b, mac_52_a, mac_52_b,
                   mac_33_a, mac_43_a, mac_43_b, mac_53_a, mac_53_b,
                   mac_44_a, mac_54_a, mac_54_b,
@@ -88,6 +88,7 @@ module cholesky (
                   div_divisor_valid, div_1_dividend_valid, div_2_dividend_valid, div_3_dividend_valid, div_4_dividend_valid,
                   sqrt_data_valid,
                   count_en, initial_reg_1;
+    reg  [31 : 0] sqrt_out;
     reg  [63 : 0] run_sum_22, run_sum_32, run_sum_42, run_sum_52,
                   run_sum_33, run_sum_43, run_sum_53,
                   run_sum_44, run_sum_54,
@@ -183,7 +184,20 @@ module cholesky (
         .m_axis_dout_tvalid      (), // Not connected, since latency is known beforehand, we know when to sample
         .m_axis_dout_tdata       (sqrt_out_t)
         );
-    assign sqrt_out = { {8{1'b0}}, sqrt_out_t };
+    assign sqrt_out_tt = { {8{1'b0}}, sqrt_out_t };
+    always @(*) begin
+        if (rst) begin
+            sqrt_out = {32{1'b0}};
+        end else begin
+            if (count == SQRT_LATENCY ||
+                count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY ||
+                count == COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY ||
+                count == COL_3_LATENCY + PRE_LATENCY + SQRT_LATENCY ||
+                count == COL_4_LATENCY + PRE_LATENCY + SQRT_LATENCY) begin
+                sqrt_out = sqrt_out_tt;
+            end
+        end
+    end
 
 // ================================================================================
     /* N - 1 Divider modules
@@ -567,6 +581,9 @@ module cholesky (
      * -------------------
      */
 
+    /* Signals div_1_dividend_valid through to div_4_dividend_valid, all need 
+     * to be assigned _something_ so that no memory elements are inferred.
+     */
     always @(*) begin
         if (rst) begin
             div_1_dividend_valid = 1'b0;
@@ -632,87 +649,61 @@ module cholesky (
      * ------------------------
      */
 
-    assign sqrt_data = ((count >= COL_1_LATENCY + PRE_LATENCY && count <= COL_1_LATENCY + PRE_LATENCY + 3) ||
-                        (count >= COL_2_LATENCY + PRE_LATENCY && count <= COL_2_LATENCY + PRE_LATENCY + 3) ||
-                        (count >= COL_3_LATENCY + PRE_LATENCY && count <= COL_3_LATENCY + PRE_LATENCY + 3) ||
-                        (count >= COL_4_LATENCY + PRE_LATENCY && count <= COL_4_LATENCY + PRE_LATENCY + 3)) ? pre_sub_sq_out : A_11;
+    assign sqrt_data = (count >= COL_1_LATENCY) ? pre_sub_sq_out : A_11;
 
 
-    assign div_1_dividend = (count >= SQRT_LATENCY && count <= SQRT_LATENCY + 2) ? A_21 : pre_sub_1_out;
-    assign div_2_dividend = (count >= SQRT_LATENCY && count <= SQRT_LATENCY + 2) ? A_31 : pre_sub_2_out;
-    assign div_3_dividend = (count >= SQRT_LATENCY && count <= SQRT_LATENCY + 2) ? A_41 : pre_sub_3_out;
-    assign div_4_dividend = (count >= SQRT_LATENCY && count <= SQRT_LATENCY + 2) ? A_51 : {{32{1'b0}}};
+    assign div_1_dividend = (count >= COL_1_LATENCY) ? pre_sub_1_out : A_21;
+    assign div_2_dividend = (count >= COL_1_LATENCY) ? pre_sub_2_out : A_31;
+    assign div_3_dividend = (count >= COL_1_LATENCY) ? pre_sub_3_out : A_41;
+    assign div_4_dividend = A_51;
 
     assign div_divisor    = sqrt_out;
 
 
-    localparam MAC_IN_LATENCY_1 = SQRT_LATENCY + DIV_LATENCY;
-    localparam MAC_IN_LATENCY_2 = COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY;
-    localparam MAC_IN_LATENCY_3 = COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY;
-    localparam MAC_IN_LATENCY_4 = COL_3_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY;
+    assign mac_22_a = div_1_out;
+    assign mac_32_a = div_1_out;
+    assign mac_32_b = div_2_out;
+    assign mac_42_a = div_1_out;
+    assign mac_42_b = div_3_out;
+    assign mac_52_a = div_1_out;
+    assign mac_52_b = div_4_out;
 
-    assign mac_22_a = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_1_out : {32{1'b0}};
-    assign mac_32_a = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_1_out : {32{1'b0}};
-    assign mac_32_b = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_2_out : {32{1'b0}};
-    assign mac_42_a = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_1_out : {32{1'b0}};
-    assign mac_42_b = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_3_out : {32{1'b0}};
-    assign mac_52_a = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_1_out : {32{1'b0}};
-    assign mac_52_b = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_4_out : {32{1'b0}};
+    assign mac_33_a = (count >= COL_1_LATENCY) ? div_1_out : div_2_out;
+    assign mac_43_a = (count >= COL_1_LATENCY) ? div_1_out : div_2_out;
+    assign mac_43_b = (count >= COL_1_LATENCY) ? div_2_out : div_3_out;
+    assign mac_53_a = (count >= COL_1_LATENCY) ? div_1_out : div_2_out;
+    assign mac_53_b = (count >= COL_1_LATENCY) ? div_3_out : div_4_out;
 
-    assign mac_33_a = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_2_out :
-                      (count >= MAC_IN_LATENCY_2 && count <= MAC_IN_LATENCY_2 + 1) ? div_1_out : {32{1'b0}};
-    assign mac_43_a = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_2_out :
-                      (count >= MAC_IN_LATENCY_2 && count <= MAC_IN_LATENCY_2 + 1) ? div_1_out : {32{1'b0}};
-    assign mac_43_b = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_3_out :
-                      (count >= MAC_IN_LATENCY_2 && count <= MAC_IN_LATENCY_2 + 1) ? div_2_out : {32{1'b0}};
-    assign mac_53_a = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_2_out :
-                      (count >= MAC_IN_LATENCY_2 && count <= MAC_IN_LATENCY_2 + 1) ? div_1_out : {32{1'b0}};
-    assign mac_53_b = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_4_out :
-                      (count >= MAC_IN_LATENCY_2 && count <= MAC_IN_LATENCY_2 + 1) ? div_3_out : {32{1'b0}};
+    assign mac_44_a = (count >= COL_2_LATENCY) ? div_1_out :
+                      (count >= COL_1_LATENCY) ? div_2_out : div_3_out;
+    assign mac_54_a = (count >= COL_2_LATENCY) ? div_1_out :
+                      (count >= COL_1_LATENCY) ? div_2_out : div_3_out;
+    assign mac_54_b = (count >= COL_2_LATENCY) ? div_2_out :
+                      (count >= COL_1_LATENCY) ? div_3_out : div_4_out;
 
-    assign mac_44_a = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_3_out :
-                      (count >= MAC_IN_LATENCY_2 && count <= MAC_IN_LATENCY_2 + 1) ? div_2_out :
-                      (count >= MAC_IN_LATENCY_3 && count <= MAC_IN_LATENCY_3 + 1) ? div_1_out : {32{1'b0}};
-    assign mac_54_a = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_3_out :
-                      (count >= MAC_IN_LATENCY_2 && count <= MAC_IN_LATENCY_2 + 1) ? div_2_out :
-                      (count >= MAC_IN_LATENCY_3 && count <= MAC_IN_LATENCY_3 + 1) ? div_1_out : {32{1'b0}};
-    assign mac_54_b = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_4_out :
-                      (count >= MAC_IN_LATENCY_2 && count <= MAC_IN_LATENCY_2 + 1) ? div_3_out :
-                      (count >= MAC_IN_LATENCY_3 && count <= MAC_IN_LATENCY_3 + 1) ? div_2_out : {32{1'b0}};
-
-    assign mac_55_a = (count >= MAC_IN_LATENCY_1 && count <= MAC_IN_LATENCY_1 + 1) ? div_4_out :
-                      (count >= MAC_IN_LATENCY_2 && count <= MAC_IN_LATENCY_2 + 1) ? div_3_out :
-                      (count >= MAC_IN_LATENCY_3 && count <= MAC_IN_LATENCY_3 + 1) ? div_2_out :
-                      (count >= MAC_IN_LATENCY_4 && count <= MAC_IN_LATENCY_4 + 1) ? div_1_out : {32{1'b0}};
+    assign mac_55_a = (count >= COL_3_LATENCY) ? div_1_out :
+                      (count >= COL_2_LATENCY) ? div_2_out :
+                      (count >= COL_1_LATENCY) ? div_3_out : div_4_out;
 
 
-    assign pre_sub_sq_a = (count >= COL_1_LATENCY && count <= COL_1_LATENCY + 3) ? A_22 :
-                          (count >= COL_2_LATENCY && count <= COL_2_LATENCY + 3) ? A_33 :
-                          (count >= COL_3_LATENCY && count <= COL_3_LATENCY + 3) ? A_44 :
-                          (count >= COL_4_LATENCY && count <= COL_4_LATENCY + 3) ? A_55 : {32{1'b0}};
-    assign pre_sub_sq_b = (count >= COL_1_LATENCY && count <= COL_1_LATENCY + 3) ? run_sum_22[47 : 16] :
-                          (count >= COL_2_LATENCY && count <= COL_2_LATENCY + 3) ? run_sum_33[47 : 16] :
-                          (count >= COL_3_LATENCY && count <= COL_3_LATENCY + 3) ? run_sum_44[47 : 16] :
-                          (count >= COL_4_LATENCY && count <= COL_4_LATENCY + 3) ? run_sum_55[47 : 16] : {32{1'b0}};
+    assign pre_sub_sq_a = (count >= COL_4_LATENCY) ? A_55 :
+                          (count >= COL_3_LATENCY) ? A_44 :
+                          (count >= COL_2_LATENCY) ? A_33 : A_22;
+    assign pre_sub_sq_b = (count >= COL_4_LATENCY) ? run_sum_55[47 : 16] :
+                          (count >= COL_3_LATENCY) ? run_sum_44[47 : 16] :
+                          (count >= COL_2_LATENCY) ? run_sum_33[47 : 16] : run_sum_22[47 : 16];
 
-    localparam PRE_IN_1_LATENCY = COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY;
-    localparam PRE_IN_2_LATENCY = COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY;
-    localparam PRE_IN_3_LATENCY = COL_3_LATENCY + PRE_LATENCY + SQRT_LATENCY;
 
-    assign pre_sub_1_a  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY + 2) ? A_32 :
-                          (count >= PRE_IN_2_LATENCY && count <= PRE_IN_2_LATENCY + 2) ? A_43 :
-                          (count >= PRE_IN_3_LATENCY && count <= PRE_IN_3_LATENCY + 2) ? A_54 : {32{1'b0}};
-    assign pre_sub_1_b  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY + 2) ? run_sum_32[47 : 16] :
-                          (count >= PRE_IN_2_LATENCY && count <= PRE_IN_2_LATENCY + 2) ? run_sum_43[47 : 16] :
-                          (count >= PRE_IN_3_LATENCY && count <= PRE_IN_3_LATENCY + 2) ? run_sum_54[47 : 16] : {32{1'b0}};
+    assign pre_sub_1_a  = (count >= COL_3_LATENCY) ? A_54 :
+                          (count >= COL_2_LATENCY) ? A_43 : A_32;
+    assign pre_sub_1_b  = (count >= COL_3_LATENCY) ? run_sum_54[47 : 16] :
+                          (count >= COL_2_LATENCY) ? run_sum_43[47 : 16] : run_sum_32[47 : 16];
 
-    assign pre_sub_2_a  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY + 2) ? A_42 :
-                          (count >= PRE_IN_2_LATENCY && count <= PRE_IN_2_LATENCY + 2) ? A_53 : {32{1'b0}};
-    assign pre_sub_2_b  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY + 2) ? run_sum_42[47 : 16] :
-                          (count >= PRE_IN_2_LATENCY && count <= PRE_IN_2_LATENCY + 2) ? run_sum_53[47 : 16] : {32{1'b0}};
+    assign pre_sub_2_a  = (count >= COL_2_LATENCY) ? A_53 : A_42;
+    assign pre_sub_2_b  = (count >= COL_2_LATENCY) ? run_sum_53[47 : 16] : run_sum_42[47 : 16];
 
-    assign pre_sub_3_a  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY + 2) ? A_52 : {32{1'b0}};
-    assign pre_sub_3_b  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY + 2) ? run_sum_52[47 : 16] : {32{1'b0}};
+    assign pre_sub_3_a  = A_52;
+    assign pre_sub_3_b  = run_sum_52[47 : 16];
 
 // ================================================================================
     /* Extract elements of the lower Cholesky factor
@@ -723,38 +714,26 @@ module cholesky (
         if (rst) begin
             L <= {480{1'b0}};
         end else begin
-            if (count == SQRT_LATENCY) begin
-                L[31 : 0] <= sqrt_out;     // L_11
-            end
-            if (count == SQRT_LATENCY + DIV_LATENCY) begin
+            if (count == COL_1_LATENCY) begin
+                L[31 : 0]    <= sqrt_out;  // L_11
                 L[63 : 32]   <= div_1_out; // L_21
                 L[127 : 96]  <= div_2_out; // L_31
                 L[223 : 192] <= div_3_out; // L_41
                 L[351 : 320] <= div_4_out; // L_51
-            end
-            if (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY) begin
-                L[95 : 64] = sqrt_out;    // L_22
-            end
-            if (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY) begin
+            end else if (count == COL_2_LATENCY) begin
+                L[95 : 64]   <= sqrt_out;  // L_22
                 L[159 : 128] <= div_1_out; // L_32
                 L[255 : 224] <= div_2_out; // L_42
                 L[383 : 352] <= div_3_out; // L_52
-            end
-            if (count == COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY) begin
-                L[191 : 160] = sqrt_out;  // L_33
-            end
-            if (count == COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY) begin
+            end else if (count == COL_3_LATENCY) begin
+                L[191 : 160] <= sqrt_out;  // L_33
                 L[287 : 256] <= div_1_out; // L_43
                 L[415 : 384] <= div_2_out; // L_53
-            end
-            if (count == COL_3_LATENCY + PRE_LATENCY + SQRT_LATENCY) begin
+            end else if (count == COL_4_LATENCY) begin
                 L[319 : 288] <= sqrt_out;  // L_44
-            end
-            if (count == COL_3_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY) begin
                 L[447 : 416] <= div_1_out; // L_54
-            end
-            if (count == COL_4_LATENCY + PRE_LATENCY + SQRT_LATENCY) begin
-                L[479 : 448] <= sqrt_out; // L_55
+             end else if (count == COL_5_LATENCY) begin
+                L[479 : 448] <= sqrt_out;  // L_55
             end
         end
     end
