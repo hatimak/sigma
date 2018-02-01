@@ -4,6 +4,9 @@
 /* TODO: Clock Enable signals (for modules that support it) are all tied to 1'b1 for now, 
  *       irrespective of whether a particular module is required at all times. Enable clock 
  *       to modules only when required and observe if any power optimisations can be derived.
+ * TODO: For any column j, only 1 forward-MAC output is required immediately (for the square 
+ *       root of next stage). Other outputs can be spread out, thus relaxing timing 
+ *       constraints (multi-cycle path).
  */
 
 module cholesky (
@@ -20,10 +23,11 @@ module cholesky (
     localparam N             = 5;
     localparam COUNT_WIDTH   = 9;
 
-    localparam DIV_LATENCY   = 53;
-    localparam SQRT_LATENCY  = 26;
-    localparam MAC_LATENCY   = 9;
-    localparam PRE_LATENCY   = 1;
+    localparam DIV_SUB_LATENCY = 1; // The output of divider generator IP needs to be "formatted" so extra latency here
+    localparam DIV_LATENCY     = 53 + DIV_SUB_LATENCY;
+    localparam SQRT_LATENCY    = 26;
+    localparam MAC_LATENCY     = 9;
+    localparam PRE_LATENCY     = 1;
 
     /* Computation of column 1 of Cholesky factor takes (SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) cycles
      * Computation of column j of Cholesky factor takes ((PRE_LATENCY + SQRT_LATENCY) + (PRE_LATENCY + DIV_LATENCY) + (MAC_LATENCY)) cycles, for j = 2..N-1
@@ -53,12 +57,10 @@ module cholesky (
                   A_54 = A[447 : 416],
                   A_55 = A[479 : 448];
 
-    wire          div_1_valid, div_2_valid, div_3_valid, div_4_valid,
-                  sclr_mac_22, sclr_mac_32, sclr_mac_42, sclr_mac_52,
+    wire          sclr_mac_22, sclr_mac_32, sclr_mac_42, sclr_mac_52,
                   sclr_mac_33, sclr_mac_43, sclr_mac_53,
                   sclr_mac_44, sclr_mac_54,
-                  sclr_mac_55,
-                  sqrt_valid;
+                  sclr_mac_55;
     wire [23 : 0] sqrt_out_t;
     wire [31 : 0] div_1_sub_out, div_2_sub_out, div_3_sub_out, div_4_sub_out,
                   div_1_out, div_2_out, div_3_out, div_4_out,
@@ -77,6 +79,7 @@ module cholesky (
                   mac_44_p, mac_54_p,
                   mac_55_p;
     reg           clk_en_div_1, clk_en_div_2, clk_en_div_3, clk_en_div_4,
+                  clk_en_div_sub_1, clk_en_div_sub_2, clk_en_div_sub_3, clk_en_div_sub_4,
                   clk_en_sqrt,
                   clk_en_mac_22, clk_en_mac_32, clk_en_mac_42, clk_en_mac_52,
                   clk_en_mac_33, clk_en_mac_43, clk_en_mac_53,
@@ -109,7 +112,10 @@ module cholesky (
         clk_en_mac_44 <= clk_en;
         clk_en_mac_54 <= clk_en;
         clk_en_mac_55 <= clk_en;
-
+        clk_en_div_sub_1 <= clk_en;
+        clk_en_div_sub_2 <= clk_en;
+        clk_en_div_sub_3 <= clk_en;
+        clk_en_div_sub_4 <= clk_en;
     end
 
     // For the first operation by the square root module
@@ -174,7 +180,7 @@ module cholesky (
         .aresetn                 (~rst),
         .s_axis_cartesian_tvalid (sqrt_data_valid),
         .s_axis_cartesian_tdata  (sqrt_data),
-        .m_axis_dout_tvalid      (sqrt_valid),
+        .m_axis_dout_tvalid      (), // Not connected, since latency is known beforehand, we know when to sample
         .m_axis_dout_tdata       (sqrt_out_t)
         );
     assign sqrt_out = { {8{1'b0}}, sqrt_out_t };
@@ -199,12 +205,14 @@ module cholesky (
         .s_axis_divisor_tdata   (div_divisor),
         .s_axis_dividend_tvalid (div_1_dividend_valid),
         .s_axis_dividend_tdata  (div_1_dividend),
-        .m_axis_dout_tvalid     (div_1_valid),
+        .m_axis_dout_tvalid     (), // Not connected, since latency is known beforehand, we know when to sample
         .m_axis_dout_tdata      (div_1_out_t)
         );
-    pe_time_ip_sub_const div_sub_1 (
-        .A (div_1_out_t[48 : 17]),
-        .S (div_1_sub_out)
+    cholesky_ip_sub_const div_sub_1 (
+        .A   (div_1_out_t[48 : 17]),
+        .CLK (clk),
+        .CE  (clk_en_div_sub_1),
+        .S   (div_1_sub_out)
         );
     assign div_1_out = (div_1_out_t[16]) ? {div_1_sub_out[15 : 0], div_1_out_t[15 : 0]} : {div_1_out_t[32 : 17], div_1_out_t[15 : 0]};
 
@@ -217,12 +225,14 @@ module cholesky (
         .s_axis_divisor_tdata   (div_divisor),
         .s_axis_dividend_tvalid (div_2_dividend_valid),
         .s_axis_dividend_tdata  (div_2_dividend),
-        .m_axis_dout_tvalid     (div_2_valid),
+        .m_axis_dout_tvalid     (), // Not connected, since latency is known beforehand, we know when to sample
         .m_axis_dout_tdata      (div_2_out_t)
         );
-    pe_time_ip_sub_const div_sub_2 (
-        .A (div_2_out_t[48 : 17]),
-        .S (div_2_sub_out)
+    cholesky_ip_sub_const div_sub_2 (
+        .A   (div_2_out_t[48 : 17]),
+        .CLK (clk),
+        .CE  (clk_en_div_sub_2),
+        .S   (div_2_sub_out)
         );
     assign div_2_out = (div_2_out_t[16]) ? {div_2_sub_out[15 : 0], div_2_out_t[15 : 0]} : {div_2_out_t[32 : 17], div_2_out_t[15 : 0]};
 
@@ -235,12 +245,14 @@ module cholesky (
         .s_axis_divisor_tdata   (div_divisor),
         .s_axis_dividend_tvalid (div_3_dividend_valid),
         .s_axis_dividend_tdata  (div_3_dividend),
-        .m_axis_dout_tvalid     (div_3_valid),
+        .m_axis_dout_tvalid     (), // Not connected, since latency is known beforehand, we know when to sample
         .m_axis_dout_tdata      (div_3_out_t)
         );
-    pe_time_ip_sub_const div_sub_3 (
-        .A (div_3_out_t[48 : 17]),
-        .S (div_3_sub_out)
+    cholesky_ip_sub_const div_sub_3 (
+        .A   (div_3_out_t[48 : 17]),
+        .CLK (clk),
+        .CE  (clk_en_div_sub_3),
+        .S   (div_3_sub_out)
         );
     assign div_3_out = (div_3_out_t[16]) ? {div_3_sub_out[15 : 0], div_3_out_t[15 : 0]} : {div_3_out_t[32 : 17], div_3_out_t[15 : 0]};
 
@@ -253,12 +265,14 @@ module cholesky (
         .s_axis_divisor_tdata   (div_divisor),
         .s_axis_dividend_tvalid (div_4_dividend_valid),
         .s_axis_dividend_tdata  (div_4_dividend),
-        .m_axis_dout_tvalid     (div_4_valid),
+        .m_axis_dout_tvalid     (),  // Not connected, since latency is known beforehand, we know when to sample
         .m_axis_dout_tdata      (div_4_out_t)
         );
-    pe_time_ip_sub_const div_sub_4 (
-        .A (div_4_out_t[48 : 17]),
-        .S (div_4_sub_out)
+    cholesky_ip_sub_const div_sub_4 (
+        .A   (div_4_out_t[48 : 17]),
+        .CLK (clk),
+        .CE  (clk_en_div_sub_4),
+        .S   (div_4_sub_out)
         );
     assign div_4_out = (div_4_out_t[16]) ? {div_4_sub_out[15 : 0], div_4_out_t[15 : 0]} : {div_4_out_t[32 : 17], div_4_out_t[15 : 0]};
 
@@ -618,17 +632,19 @@ module cholesky (
      * ------------------------
      */
 
-    assign sqrt_data = ((count >= COL_1_LATENCY + PRE_LATENCY && count <= COL_1_LATENCY + PRE_LATENCY + 2) ||
-                        (count >= COL_2_LATENCY + PRE_LATENCY && count <= COL_2_LATENCY + PRE_LATENCY + 2) ||
-                        (count >= COL_3_LATENCY + PRE_LATENCY && count <= COL_3_LATENCY + PRE_LATENCY + 2) ||
-                        (count >= COL_4_LATENCY + PRE_LATENCY && count <= COL_4_LATENCY + PRE_LATENCY + 2)) ? pre_sub_sq_out : A_11;
+    assign sqrt_data = ((count >= COL_1_LATENCY + PRE_LATENCY && count <= COL_1_LATENCY + PRE_LATENCY + 3) ||
+                        (count >= COL_2_LATENCY + PRE_LATENCY && count <= COL_2_LATENCY + PRE_LATENCY + 3) ||
+                        (count >= COL_3_LATENCY + PRE_LATENCY && count <= COL_3_LATENCY + PRE_LATENCY + 3) ||
+                        (count >= COL_4_LATENCY + PRE_LATENCY && count <= COL_4_LATENCY + PRE_LATENCY + 3)) ? pre_sub_sq_out : A_11;
 
-    assign div_1_dividend = (count >= SQRT_LATENCY && count <= SQRT_LATENCY + 1) ? A_21 : pre_sub_1_out;
-    assign div_2_dividend = (count >= SQRT_LATENCY && count <= SQRT_LATENCY + 1) ? A_31 : pre_sub_2_out;
-    assign div_3_dividend = (count >= SQRT_LATENCY && count <= SQRT_LATENCY + 1) ? A_41 : pre_sub_3_out;
-    assign div_4_dividend = (count >= SQRT_LATENCY && count <= SQRT_LATENCY + 1) ? A_51 : {{32{1'b0}}};
+
+    assign div_1_dividend = (count >= SQRT_LATENCY && count <= SQRT_LATENCY + 2) ? A_21 : pre_sub_1_out;
+    assign div_2_dividend = (count >= SQRT_LATENCY && count <= SQRT_LATENCY + 2) ? A_31 : pre_sub_2_out;
+    assign div_3_dividend = (count >= SQRT_LATENCY && count <= SQRT_LATENCY + 2) ? A_41 : pre_sub_3_out;
+    assign div_4_dividend = (count >= SQRT_LATENCY && count <= SQRT_LATENCY + 2) ? A_51 : {{32{1'b0}}};
 
     assign div_divisor    = sqrt_out;
+
 
     localparam MAC_IN_LATENCY_1 = SQRT_LATENCY + DIV_LATENCY;
     localparam MAC_IN_LATENCY_2 = COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY + DIV_LATENCY;
@@ -670,33 +686,33 @@ module cholesky (
                       (count >= MAC_IN_LATENCY_4 && count <= MAC_IN_LATENCY_4 + 1) ? div_1_out : {32{1'b0}};
 
 
-    assign pre_sub_sq_a = (count >= COL_1_LATENCY && count <= COL_1_LATENCY + 2) ? A_22 :
-                          (count >= COL_2_LATENCY && count <= COL_2_LATENCY + 2) ? A_33 :
-                          (count >= COL_3_LATENCY && count <= COL_3_LATENCY + 2) ? A_44 :
-                          (count >= COL_4_LATENCY && count <= COL_4_LATENCY + 2) ? A_55 : {32{1'b0}};
-    assign pre_sub_sq_b = (count >= COL_1_LATENCY && count <= COL_1_LATENCY + 2) ? run_sum_22[47 : 16] :
-                          (count >= COL_2_LATENCY && count <= COL_2_LATENCY + 2) ? run_sum_33[47 : 16] :
-                          (count >= COL_3_LATENCY && count <= COL_3_LATENCY + 2) ? run_sum_44[47 : 16] :
-                          (count >= COL_4_LATENCY && count <= COL_4_LATENCY + 2) ? run_sum_55[47 : 16] : {32{1'b0}};
+    assign pre_sub_sq_a = (count >= COL_1_LATENCY && count <= COL_1_LATENCY + 3) ? A_22 :
+                          (count >= COL_2_LATENCY && count <= COL_2_LATENCY + 3) ? A_33 :
+                          (count >= COL_3_LATENCY && count <= COL_3_LATENCY + 3) ? A_44 :
+                          (count >= COL_4_LATENCY && count <= COL_4_LATENCY + 3) ? A_55 : {32{1'b0}};
+    assign pre_sub_sq_b = (count >= COL_1_LATENCY && count <= COL_1_LATENCY + 3) ? run_sum_22[47 : 16] :
+                          (count >= COL_2_LATENCY && count <= COL_2_LATENCY + 3) ? run_sum_33[47 : 16] :
+                          (count >= COL_3_LATENCY && count <= COL_3_LATENCY + 3) ? run_sum_44[47 : 16] :
+                          (count >= COL_4_LATENCY && count <= COL_4_LATENCY + 3) ? run_sum_55[47 : 16] : {32{1'b0}};
 
     localparam PRE_IN_1_LATENCY = COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY;
     localparam PRE_IN_2_LATENCY = COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY;
     localparam PRE_IN_3_LATENCY = COL_3_LATENCY + PRE_LATENCY + SQRT_LATENCY;
 
-    assign pre_sub_1_a  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY +1) ? A_32 :
-                          (count >= PRE_IN_2_LATENCY && count <= PRE_IN_2_LATENCY +1) ? A_43 :
-                          (count >= PRE_IN_3_LATENCY && count <= PRE_IN_3_LATENCY + 1) ? A_54 : {32{1'b0}};
-    assign pre_sub_1_b  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY +1) ? run_sum_32[47 : 16] :
-                          (count >= PRE_IN_2_LATENCY && count <= PRE_IN_2_LATENCY +1) ? run_sum_43[47 : 16] :
-                          (count >= PRE_IN_3_LATENCY && count <= PRE_IN_3_LATENCY + 1) ? run_sum_54[47 : 16] : {32{1'b0}};
+    assign pre_sub_1_a  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY + 2) ? A_32 :
+                          (count >= PRE_IN_2_LATENCY && count <= PRE_IN_2_LATENCY + 2) ? A_43 :
+                          (count >= PRE_IN_3_LATENCY && count <= PRE_IN_3_LATENCY + 2) ? A_54 : {32{1'b0}};
+    assign pre_sub_1_b  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY + 2) ? run_sum_32[47 : 16] :
+                          (count >= PRE_IN_2_LATENCY && count <= PRE_IN_2_LATENCY + 2) ? run_sum_43[47 : 16] :
+                          (count >= PRE_IN_3_LATENCY && count <= PRE_IN_3_LATENCY + 2) ? run_sum_54[47 : 16] : {32{1'b0}};
 
-    assign pre_sub_2_a  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY +1) ? A_42 :
-                          (count >= PRE_IN_2_LATENCY && count <= PRE_IN_2_LATENCY +1) ? A_53 : {32{1'b0}};
-    assign pre_sub_2_b  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY +1) ? run_sum_42[47 : 16] :
-                          (count >= PRE_IN_2_LATENCY && count <= PRE_IN_2_LATENCY +1) ? run_sum_53[47 : 16] : {32{1'b0}};
+    assign pre_sub_2_a  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY + 2) ? A_42 :
+                          (count >= PRE_IN_2_LATENCY && count <= PRE_IN_2_LATENCY + 2) ? A_53 : {32{1'b0}};
+    assign pre_sub_2_b  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY + 2) ? run_sum_42[47 : 16] :
+                          (count >= PRE_IN_2_LATENCY && count <= PRE_IN_2_LATENCY + 2) ? run_sum_53[47 : 16] : {32{1'b0}};
 
-    assign pre_sub_3_a  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY +1) ? A_52 : {32{1'b0}};
-    assign pre_sub_3_b  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY +1) ? run_sum_52[47 : 16] : {32{1'b0}};
+    assign pre_sub_3_a  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY + 2) ? A_52 : {32{1'b0}};
+    assign pre_sub_3_b  = (count >= PRE_IN_1_LATENCY && count <= PRE_IN_1_LATENCY + 2) ? run_sum_52[47 : 16] : {32{1'b0}};
 
 // ================================================================================
     /* Extract elements of the lower Cholesky factor

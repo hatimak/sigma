@@ -42,6 +42,7 @@ add_files -norecurse $ipRoot/pe_matrix_ip_mac.xcix
 add_files -norecurse $ipRoot/cholesky_ip_sqrt.xcix
 add_files -norecurse $ipRoot/cholesky_ip_div.xcix
 add_files -norecurse $ipRoot/cholesky_ip_sub.xcix
+add_files -norecurse $ipRoot/cholesky_ip_sub_const.xcix
 add_files -norecurse $ipRoot/vsad_ip_mac.xcix
 
 update_compile_order -fileset sources_1

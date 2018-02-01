@@ -1,6 +1,6 @@
 RTL=./hdl/pe_time_proc.v ./hdl/pe_meas_proc.v ./hdl/pe_matrix_expectation_comb.v
 
-IP=./ip/vsad_ip_mac.xcix ./ip/cholesky_ip_div.xcix ./ip/cholesky_ip_sqrt.xcix ./ip/cholesky_ip_sub.xcix ./ip/pe_matrix_ip_mac.xcix ./ip/pe_meas_ip_add_long.xcix ./ip/pe_meas_ip_arctan.xcix ./ip/pe_meas_ip_shift_ram.xcix ./ip/pe_meas_ip_shift_valid.xcix ./ip/pe_meas_ip_sqrt.xcix ./ip/pe_meas_ip_square.xcix ./ip/pe_time_ip_add.xcix ./ip/pe_time_ip_div.xcix ./ip/pe_time_ip_mult_dsp.xcix ./ip/pe_time_ip_sub.xcix ./ip/pe_time_ip_sub_const.xcix ./ip/pe_time_ip_trig.xcix
+IP=./ip/vsad_ip_mac.xcix ./ip/cholesky_ip_div.xcix ./ip/cholesky_ip_sqrt.xcix ./ip/cholesky_ip_sub_const.xcix ./ip/cholesky_ip_sub.xcix ./ip/pe_matrix_ip_mac.xcix ./ip/pe_meas_ip_add_long.xcix ./ip/pe_meas_ip_arctan.xcix ./ip/pe_meas_ip_shift_ram.xcix ./ip/pe_meas_ip_shift_valid.xcix ./ip/pe_meas_ip_sqrt.xcix ./ip/pe_meas_ip_square.xcix ./ip/pe_time_ip_add.xcix ./ip/pe_time_ip_div.xcix ./ip/pe_time_ip_mult_dsp.xcix ./ip/pe_time_ip_sub.xcix ./ip/pe_time_ip_sub_const.xcix ./ip/pe_time_ip_trig.xcix
 
 vivado: ip_vivado setup_vivado
 
