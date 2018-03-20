@@ -9,15 +9,15 @@ set ipRoot ./ip
 set tbRoot ./tb
 
 # Create project
-create_project -force top ./vivado/top -part xc7a100tcsg324-1
+create_project -force top ./vivado/top -part xc7z020clg484-1
 
 # Set project properties
 set obj [get_projects top]
-set_property "board_part" "digilentinc.com:nexys4_ddr:part0:1.1" $obj
+set_property "board_part" "xilinx.com:zc702:part0:1.2" $obj
 set_property "simulator_language" "Mixed" $obj
 set_property "target_language" "Verilog" $obj
 set_property coreContainer.enable 1 $obj
-config_ip_cache -disable_cache
+check_ip_cache -disable_cache
 update_ip_catalog
 
 add_files -norecurse $hdlRoot/pe_time_proc.v
@@ -57,6 +57,7 @@ add_files -fileset sim_1 -norecurse $tbRoot/tb_vsad.v
 update_compile_order -fileset sim_1
 
 set_property STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE true [get_runs impl_1]
+set_property STEPS.SYNTH_DESIGN.ARGS.FLATTEN_HIERARCHY none [get_runs synth_1]
 
 # If successful, "touch" a file so the make utility will know it's done 
 touch {./vivado/.setup_vivado.done}
