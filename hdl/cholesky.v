@@ -89,8 +89,7 @@ module cholesky (
                   mac_33_p, mac_43_p, mac_53_p,
                   mac_44_p, mac_54_p,
                   mac_55_p;
-    reg           clk_en_div_1, clk_en_div_2, clk_en_div_3, clk_en_div_4,
-                  clk_en_div_sub_1, clk_en_div_sub_2, clk_en_div_sub_3, clk_en_div_sub_4,
+    reg           clk_en_div_sub_1, clk_en_div_sub_2, clk_en_div_sub_3, clk_en_div_sub_4,
                   clk_en_sqrt,
                   clk_en_mac_22, clk_en_mac_32, clk_en_mac_42, clk_en_mac_52,
                   clk_en_mac_33, clk_en_mac_43, clk_en_mac_53,
@@ -99,6 +98,7 @@ module cholesky (
                   div_divisor_valid, div_1_dividend_valid, div_2_dividend_valid, div_3_dividend_valid, div_4_dividend_valid,
                   sqrt_data_valid,
                   count_en, initial_reg_1;
+    reg   [3 : 0] clk_en_div;
     reg  [31 : 0] sqrt_out;
     reg  [63 : 0] run_sum_22, run_sum_32, run_sum_42, run_sum_52,
                   run_sum_33, run_sum_43, run_sum_53,
@@ -109,11 +109,6 @@ module cholesky (
 
     // Refer TODO above, this block is temporary
     always @(posedge clk) begin
-        clk_en_div_1 <= clk_en;
-        clk_en_div_2 <= clk_en;
-        clk_en_div_3 <= clk_en;
-        clk_en_div_4 <= clk_en;
-        clk_en_sqrt <= clk_en;
         clk_en_mac_22 <= clk_en;
         clk_en_mac_32 <= clk_en;
         clk_en_mac_42 <= clk_en;
@@ -200,51 +195,108 @@ module cholesky (
         if (rst) begin
             state <= S_IDLE;
             s_count <= 8'b0000_0000;
+
+            clk_en_div <= 4'b0000;
+            clk_en_sqrt <= 1'b0;
         end else begin
             case (state)
                 S_IDLE: begin
                     if (A_valid) begin
                         state <= S_COL_1;
                         s_count <= 8'b0000_0001;
+
+                        clk_en_sqrt <= 1'b1;
                     end else begin
                         state <= S_IDLE;
                         s_count <= 8'b0000_0000;
+
+                        clk_en_sqrt <= 1'b0;
                     end
+
+                    clk_en_div <= 4'b0000;
                 end
                 S_COL_1: begin
                     if (s_count == S_COL_1_LAT) begin
                         state <= S_COL_2;
                         s_count <= 8'b0000_0001;
+
+                        clk_en_sqrt <= 1'b1;
                     end else begin
                         state <= S_COL_1;
                         s_count <= s_count + 8'b0000_0001;
+                        
+                        if (s_count > SQRT_LATENCY) begin
+                            clk_en_sqrt <= 1'b0;
+                        end
+                    end
+
+                    if (s_count >= SQRT_LATENCY - 1 && s_count <= SQRT_LATENCY + DIV_LATENCY) begin
+                        clk_en_div <= 4'b1111;
+                    end else begin
+                        clk_en_div <= 4'b0000;
                     end
                 end
                 S_COL_2: begin
                     if (s_count == S_COL_I_LAT) begin
                         state <= S_COL_3;
                         s_count <= 8'b0000_0001;
+
+                        clk_en_sqrt <= 1'b1;
                     end else begin
                         state <= S_COL_2;
                         s_count <= s_count + 8'b0000_0001;
+
+                        if (s_count > PRE_LATENCY + SQRT_LATENCY) begin
+                            clk_en_sqrt <= 1'b0;
+                        end
+                    end
+
+                    if (s_count >= SQRT_LATENCY + 2 * PRE_LATENCY - 1 && s_count <= SQRT_LATENCY + 2 * PRE_LATENCY + DIV_LATENCY) begin
+                        clk_en_div <= 4'b0111;
+                    end else begin
+                        clk_en_div <= 4'b0000;
                     end
                 end
                 S_COL_3: begin
                     if (s_count == S_COL_I_LAT) begin
                         state <= S_COL_4;
                         s_count <= 8'b0000_0001;
+
+                        clk_en_sqrt <= 1'b1;
                     end else begin
                         state <= S_COL_3;
                         s_count <= s_count + 8'b0000_0001;
+
+                        if (s_count > PRE_LATENCY + SQRT_LATENCY) begin
+                            clk_en_sqrt <= 1'b0;
+                        end
+                    end
+
+                    if (s_count >= SQRT_LATENCY + 2 * PRE_LATENCY - 1 && s_count <= SQRT_LATENCY + 2 * PRE_LATENCY + DIV_LATENCY) begin
+                        clk_en_div <= 4'b0011;
+                    end else begin
+                        clk_en_div <= 4'b0000;
                     end
                 end
                 S_COL_4: begin
                     if (s_count == S_COL_I_LAT) begin
                         state <= S_COL_5;
                         s_count <= 8'b0000_0001;
+
+                        clk_en_sqrt <= 1'b1;
                     end else begin
                         state <= S_COL_4;
                         s_count <= s_count + 8'b0000_0001;
+
+                        if (s_count > PRE_LATENCY + SQRT_LATENCY) begin
+                            clk_en_sqrt <= 1'b0;
+                        end
+                    end
+
+                    if (s_count >= SQRT_LATENCY + 2 * PRE_LATENCY - 1 && s_count <= SQRT_LATENCY + 2 * PRE_LATENCY + DIV_LATENCY) begin
+                        clk_en_div <= 4'b0001;
+                    end else begin
+                        clk_en_div <= 4'b0000;
                     end
                 end
                 S_COL_5: begin
@@ -252,6 +304,8 @@ module cholesky (
                         if (A_valid) begin
                             state <= S_COL_1;
                             s_count <= 8'b0000_0001;
+
+                            clk_en_sqrt <= 1'b1;
                         end else begin
                             state <= S_IDLE;
                             s_count <= 8'b0000_0000;
@@ -259,6 +313,10 @@ module cholesky (
                     end else begin
                         state <= S_COL_5;
                         s_count <= s_count + 8'b0000_0001;
+
+                        if (s_count > PRE_LATENCY + SQRT_LATENCY) begin
+                            clk_en_sqrt <= 1'b0;
+                        end
                     end
                 end
             endcase
@@ -309,7 +367,7 @@ module cholesky (
 
     cholesky_ip_div div_1 (
         .aclk                   (clk),
-        .aclken                 (clk_en_div_1),
+        .aclken                 (clk_en_div[0]),
         .aresetn                (~rst),
         .s_axis_divisor_tvalid  (div_divisor_valid),
         .s_axis_divisor_tdata   (div_divisor),
@@ -329,7 +387,7 @@ module cholesky (
 // --------------------------------------------------------------------------------
     cholesky_ip_div div_2 (
         .aclk                   (clk),
-        .aclken                 (clk_en_div_2),
+        .aclken                 (clk_en_div[1]),
         .aresetn                (~rst),
         .s_axis_divisor_tvalid  (div_divisor_valid),
         .s_axis_divisor_tdata   (div_divisor),
@@ -349,7 +407,7 @@ module cholesky (
 // --------------------------------------------------------------------------------
     cholesky_ip_div div_3 (
         .aclk                   (clk),
-        .aclken                 (clk_en_div_3),
+        .aclken                 (clk_en_div[2]),
         .aresetn                (~rst),
         .s_axis_divisor_tvalid  (div_divisor_valid),
         .s_axis_divisor_tdata   (div_divisor),
@@ -369,7 +427,7 @@ module cholesky (
 // --------------------------------------------------------------------------------
     cholesky_ip_div div_4 (
         .aclk                   (clk),
-        .aclken                 (clk_en_div_4),
+        .aclken                 (clk_en_div[3]),
         .aresetn                (~rst),
         .s_axis_divisor_tvalid  (div_divisor_valid),
         .s_axis_divisor_tdata   (div_divisor),
