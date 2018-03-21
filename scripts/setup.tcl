@@ -56,6 +56,8 @@ add_files -fileset sim_1 -norecurse $tbRoot/tb_vsad.v
 
 update_compile_order -fileset sim_1
 
+add_files -fileset constrs_1 -norecurse $xdcRoot/zc702.xdc
+
 set_property STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE true [get_runs impl_1]
 set_property STEPS.SYNTH_DESIGN.ARGS.FLATTEN_HIERARCHY none [get_runs synth_1]
 
