@@ -182,64 +182,83 @@ module cholesky (
 
 // ================================================================================
 
-    parameter S_IDLE  = 6'b00_0001;
-    parameter S_COL_1 = 6'b00_0010;
-    parameter S_COL_2 = 6'b00_0100;
-    parameter S_COL_3 = 6'b00_1000;
-    parameter S_COL_4 = 6'b01_0000;
-    parameter S_COL_5 = 6'b10_0000;
+    localparam S_IDLE  = 6'b00_0001;
+    localparam S_COL_1 = 6'b00_0010;
+    localparam S_COL_2 = 6'b00_0100;
+    localparam S_COL_3 = 6'b00_1000;
+    localparam S_COL_4 = 6'b01_0000;
+    localparam S_COL_5 = 6'b10_0000;
+
+    localparam S_COL_1_LAT = SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY; // First column latency
+    localparam S_COL_I_LAT = (PRE_LATENCY + SQRT_LATENCY) + (PRE_LATENCY + DIV_LATENCY) + (MAC_LATENCY); // I-th column latency, I = 2, 3, ..., N-1
+    localparam S_COL_N_LAT = PRE_LATENCY + SQRT_LATENCY; // Last column latency
 
     reg [5 : 0] state;
+    reg [7 : 0] s_count;
 
     always @(posedge clk) begin
         if (rst) begin
             state <= S_IDLE;
+            s_count <= 8'b0000_0000;
         end else begin
             case (state)
                 S_IDLE: begin
                     if (A_valid) begin
                         state <= S_COL_1;
+                        s_count <= 8'b0000_0001;
                     end else begin
                         state <= S_IDLE;
+                        s_count <= 8'b0000_0000;
                     end
                 end
                 S_COL_1: begin
-                    if (count == COL_1_LATENCY) begin
+                    if (s_count == S_COL_1_LAT) begin
                         state <= S_COL_2;
+                        s_count <= 8'b0000_0001;
                     end else begin
                         state <= S_COL_1;
+                        s_count <= s_count + 8'b0000_0001;
                     end
                 end
                 S_COL_2: begin
-                    if (count == COL_2_LATENCY) begin
+                    if (s_count == S_COL_I_LAT) begin
                         state <= S_COL_3;
+                        s_count <= 8'b0000_0001;
                     end else begin
                         state <= S_COL_2;
+                        s_count <= s_count + 8'b0000_0001;
                     end
                 end
                 S_COL_3: begin
-                    if (count == COL_3_LATENCY) begin
+                    if (s_count == S_COL_I_LAT) begin
                         state <= S_COL_4;
+                        s_count <= 8'b0000_0001;
                     end else begin
                         state <= S_COL_3;
+                        s_count <= s_count + 8'b0000_0001;
                     end
                 end
                 S_COL_4: begin
-                    if (count == COL_4_LATENCY) begin
+                    if (s_count == S_COL_I_LAT) begin
                         state <= S_COL_5;
+                        s_count <= 8'b0000_0001;
                     end else begin
                         state <= S_COL_4;
+                        s_count <= s_count + 8'b0000_0001;
                     end
                 end
                 S_COL_5: begin
-                    if (count == CHOL_LATENCY) begin
+                    if (s_count == S_COL_N_LAT) begin
                         if (A_valid) begin
                             state <= S_COL_1;
+                            s_count <= 8'b0000_0001;
                         end else begin
                             state <= S_IDLE;
+                            s_count <= 8'b0000_0000;
                         end
                     end else begin
                         state <= S_COL_5;
+                        s_count <= s_count + 8'b0000_0001;
                     end
                 end
             endcase
