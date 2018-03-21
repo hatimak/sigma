@@ -181,6 +181,72 @@ module cholesky (
     end
 
 // ================================================================================
+
+    parameter S_IDLE  = 6'b00_0001;
+    parameter S_COL_1 = 6'b00_0010;
+    parameter S_COL_2 = 6'b00_0100;
+    parameter S_COL_3 = 6'b00_1000;
+    parameter S_COL_4 = 6'b01_0000;
+    parameter S_COL_5 = 6'b10_0000;
+
+    reg [5 : 0] state;
+
+    always @(posedge clk) begin
+        if (rst) begin
+            state <= S_IDLE;
+        end else begin
+            case (state)
+                S_IDLE: begin
+                    if (A_valid) begin
+                        state <= S_COL_1;
+                    end else begin
+                        state <= S_IDLE;
+                    end
+                end
+                S_COL_1: begin
+                    if (count == COL_1_LATENCY) begin
+                        state <= S_COL_2;
+                    end else begin
+                        state <= S_COL_1;
+                    end
+                end
+                S_COL_2: begin
+                    if (count == COL_2_LATENCY) begin
+                        state <= S_COL_3;
+                    end else begin
+                        state <= S_COL_2;
+                    end
+                end
+                S_COL_3: begin
+                    if (count == COL_3_LATENCY) begin
+                        state <= S_COL_4;
+                    end else begin
+                        state <= S_COL_3;
+                    end
+                end
+                S_COL_4: begin
+                    if (count == COL_4_LATENCY) begin
+                        state <= S_COL_5;
+                    end else begin
+                        state <= S_COL_4;
+                    end
+                end
+                S_COL_5: begin
+                    if (count == CHOL_LATENCY) begin
+                        if (A_valid) begin
+                            state <= S_COL_1;
+                        end else begin
+                            state <= S_IDLE;
+                        end
+                    end else begin
+                        state <= S_COL_5;
+                    end
+                end
+            endcase
+        end
+    end
+
+// ================================================================================
     /* Square root module
      * ------------------
      * Latency is SQRT_LATENCY
