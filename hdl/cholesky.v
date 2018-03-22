@@ -51,7 +51,9 @@ module cholesky (
     wire          sclr_mac_22, sclr_mac_32, sclr_mac_42, sclr_mac_52,
                   sclr_mac_33, sclr_mac_43, sclr_mac_53,
                   sclr_mac_44, sclr_mac_54,
-                  sclr_mac_55;
+                  sclr_mac_55,
+                  sqrt_data_valid, div_divisor_valid;
+    wire  [3 : 0] div_dividend_valid;
     wire [23 : 0] sqrt_out_t;
     wire [31 : 0] div_1_sub_out, div_2_sub_out, div_3_sub_out, div_4_sub_out,
                   div_1_out, div_2_out, div_3_out, div_4_out,
@@ -69,11 +71,8 @@ module cholesky (
                   mac_33_p, mac_43_p, mac_53_p,
                   mac_44_p, mac_54_p,
                   mac_55_p;
-    reg           clk_en_sqrt,
-                  div_divisor_valid, div_1_dividend_valid, div_2_dividend_valid, div_3_dividend_valid, div_4_dividend_valid,
-                  sqrt_data_valid,
-                  count_en, initial_reg_1;
-    reg   [3 : 0] clk_en_div;
+    reg           clk_en_sqrt, sqrt_data_valid_d1, sqrt_data_valid_d2, count_en;
+    reg   [3 : 0] clk_en_div, div_dividend_valid_d1, div_dividend_valid_d2;
     reg   [9 : 0] clk_en_mac;
     reg  [31 : 0] sqrt_out;
     reg  [63 : 0] run_sum_22, run_sum_32, run_sum_42, run_sum_52,
@@ -82,11 +81,6 @@ module cholesky (
                   run_sum_55;
 
     reg [COUNT_WIDTH-1 : 0] count;
-
-    // For the first operation by the square root module
-    always @(posedge clk) begin
-        initial_reg_1 <= A_valid;
-    end
 
     // Keeping count of cycles
     always @(posedge clk) begin
@@ -170,6 +164,7 @@ module cholesky (
                         s_count <= 8'b0000_0000;
 
                         clk_en_sqrt <= 1'b0;
+
                     end
 
                     clk_en_div <= 4'b0000;
@@ -289,19 +284,32 @@ module cholesky (
                         end else begin
                             state <= S_IDLE;
                             s_count <= 8'b0000_0000;
+
+                            clk_en_sqrt <= 1'b0;
                         end
                     end else begin
                         state <= S_COL_5;
                         s_count <= s_count + 8'b0000_0001;
-
-                        if (s_count > PRE_LATENCY + SQRT_LATENCY) begin
-                            clk_en_sqrt <= 1'b0;
-                        end
                     end
                 end
             endcase
         end
     end
+
+    /* Set data valid signals
+     * ----------------------
+     */
+    always @(posedge clk) begin
+        sqrt_data_valid_d1 <= clk_en_sqrt;
+        sqrt_data_valid_d2 <= sqrt_data_valid_d1;
+
+        div_dividend_valid_d1 <= clk_en_div;
+        div_dividend_valid_d2 <= div_dividend_valid_d1;
+    end
+
+    assign sqrt_data_valid = sqrt_data_valid_d1 & ~sqrt_data_valid_d2;
+    assign div_dividend_valid = div_dividend_valid_d1 & ~div_dividend_valid_d2;
+    assign div_divisor_valid = |div_dividend_valid; // Divisor input is valid anytime a dividend input is valid.
 
 // ================================================================================
     /* Square root module
@@ -351,7 +359,7 @@ module cholesky (
         .aresetn                (~rst),
         .s_axis_divisor_tvalid  (div_divisor_valid),
         .s_axis_divisor_tdata   (div_divisor),
-        .s_axis_dividend_tvalid (div_1_dividend_valid),
+        .s_axis_dividend_tvalid (div_dividend_valid[0]),
         .s_axis_dividend_tdata  (div_1_dividend),
         .m_axis_dout_tvalid     (), // Not connected, since latency is known beforehand, we know when to sample
         .m_axis_dout_tdata      (div_1_out_t)
@@ -371,7 +379,7 @@ module cholesky (
         .aresetn                (~rst),
         .s_axis_divisor_tvalid  (div_divisor_valid),
         .s_axis_divisor_tdata   (div_divisor),
-        .s_axis_dividend_tvalid (div_2_dividend_valid),
+        .s_axis_dividend_tvalid (div_dividend_valid[1]),
         .s_axis_dividend_tdata  (div_2_dividend),
         .m_axis_dout_tvalid     (), // Not connected, since latency is known beforehand, we know when to sample
         .m_axis_dout_tdata      (div_2_out_t)
@@ -391,7 +399,7 @@ module cholesky (
         .aresetn                (~rst),
         .s_axis_divisor_tvalid  (div_divisor_valid),
         .s_axis_divisor_tdata   (div_divisor),
-        .s_axis_dividend_tvalid (div_3_dividend_valid),
+        .s_axis_dividend_tvalid (div_dividend_valid[2]),
         .s_axis_dividend_tdata  (div_3_dividend),
         .m_axis_dout_tvalid     (), // Not connected, since latency is known beforehand, we know when to sample
         .m_axis_dout_tdata      (div_3_out_t)
@@ -411,7 +419,7 @@ module cholesky (
         .aresetn                (~rst),
         .s_axis_divisor_tvalid  (div_divisor_valid),
         .s_axis_divisor_tdata   (div_divisor),
-        .s_axis_dividend_tvalid (div_4_dividend_valid),
+        .s_axis_dividend_tvalid (div_dividend_valid[3]),
         .s_axis_dividend_tdata  (div_4_dividend),
         .m_axis_dout_tvalid     (),  // Not connected, since latency is known beforehand, we know when to sample
         .m_axis_dout_tdata      (div_4_out_t)
@@ -709,75 +717,6 @@ module cholesky (
         .CLK (clk),
         .S   (pre_sub_sq_out)
         );
-
-// ================================================================================
-    /* Setup valid signals
-     * -------------------
-     */
-
-    /* Signals div_1_dividend_valid through to div_4_dividend_valid, all need 
-     * to be assigned _something_ so that no memory elements are inferred.
-     */
-    always @(*) begin
-        if (rst) begin
-            div_1_dividend_valid = 1'b0;
-            div_2_dividend_valid = 1'b0;
-            div_3_dividend_valid = 1'b0;
-            div_4_dividend_valid = 1'b0;
-
-            div_divisor_valid = 1'b0;
-        end else if (count == SQRT_LATENCY) begin
-            div_1_dividend_valid = 1'b1;
-            div_2_dividend_valid = 1'b1;
-            div_3_dividend_valid = 1'b1;
-            div_4_dividend_valid = 1'b1;
-
-            div_divisor_valid = 1'b1;
-        end else if (count == COL_1_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY) begin
-            div_1_dividend_valid = 1'b1;
-            div_2_dividend_valid = 1'b1;
-            div_3_dividend_valid = 1'b1;
-            div_4_dividend_valid = 1'b0;
-
-            div_divisor_valid = 1'b1;
-        end else if (count == COL_2_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY) begin
-            div_1_dividend_valid = 1'b1;
-            div_2_dividend_valid = 1'b1;
-            div_3_dividend_valid = 1'b0;
-            div_4_dividend_valid = 1'b0;
-
-            div_divisor_valid = 1'b1;
-        end else if (count == COL_3_LATENCY + PRE_LATENCY + SQRT_LATENCY + PRE_LATENCY) begin
-            div_1_dividend_valid = 1'b1;
-            div_2_dividend_valid = 1'b0;
-            div_3_dividend_valid = 1'b0;
-            div_4_dividend_valid = 1'b0;
-
-            div_divisor_valid = 1'b1;
-        end else begin
-            div_1_dividend_valid = 1'b0;
-            div_2_dividend_valid = 1'b0;
-            div_3_dividend_valid = 1'b0;
-            div_4_dividend_valid = 1'b0;
-
-            div_divisor_valid = 1'b0;
-        end
-    end
-
-    always @(*) begin
-        if (rst) begin
-            sqrt_data_valid = 1'b0;
-        end else if (count >= 0 && count < SQRT_LATENCY) begin
-            sqrt_data_valid = A_valid & ~initial_reg_1;
-        end else if ((count == COL_1_LATENCY + PRE_LATENCY) ||
-                     (count == COL_2_LATENCY + PRE_LATENCY) ||
-                     (count == COL_3_LATENCY + PRE_LATENCY) ||
-                     (count == COL_4_LATENCY + PRE_LATENCY)) begin
-            sqrt_data_valid = 1'b1;
-        end else begin
-            sqrt_data_valid = 1'b0;
-        end
-    end
 
 // ================================================================================
     /* Setup input data signals
