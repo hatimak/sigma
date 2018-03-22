@@ -1,11 +1,5 @@
 `timescale 1ns / 1ps
 
-
-/* TODO: Clock Enable signals (for modules that support it) are all tied to 1'b1 for now, 
- *       irrespective of whether a particular module is required at all times. Enable clock 
- *       to modules only when required and observe if any power optimisations can be derived.
- */
-
 module cholesky (
     input wire           clk,
     input wire           clk_en,
@@ -25,20 +19,6 @@ module cholesky (
     localparam SQRT_LATENCY    = 26;
     localparam MAC_LATENCY     = 9;
     localparam PRE_LATENCY     = 1;
-
-    /* For any column j, 1 MAC output is required immediately (for computing 
-     * square root to obatin diagonal of column j+1), however, the computation 
-     * of remaining MAC operations for column j can be spread until square root 
-     * is computing (i.e. before these remaining MAC operations are required 
-     * by the division operation of the next stage).
-     * MAC_j_SKEW_UNIT is the additional number of cycles after which a MAC operation, 
-     * that is not immediately needed, is sampled. This arrangement helps relax timing 
-     * by making it a multi cycle path (multi cycle path constraint should be enforced 
-     * by constraints file).
-     */
-    localparam MAC_1_SKEW_UNIT = 3;
-    localparam MAC_2_SKEW_UNIT = 5;
-    localparam MAC_3_SKEW_UNIT = 13;
 
     /* Computation of column 1 of Cholesky factor takes (SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) cycles
      * Computation of column j of Cholesky factor takes ((PRE_LATENCY + SQRT_LATENCY) + (PRE_LATENCY + DIV_LATENCY) + (MAC_LATENCY)) cycles, for j = 2..N-1
@@ -89,16 +69,12 @@ module cholesky (
                   mac_33_p, mac_43_p, mac_53_p,
                   mac_44_p, mac_54_p,
                   mac_55_p;
-    reg           clk_en_div_sub_1, clk_en_div_sub_2, clk_en_div_sub_3, clk_en_div_sub_4,
-                  clk_en_sqrt,
-                  clk_en_mac_22, clk_en_mac_32, clk_en_mac_42, clk_en_mac_52,
-                  clk_en_mac_33, clk_en_mac_43, clk_en_mac_53,
-                  clk_en_mac_44, clk_en_mac_54,
-                  clk_en_mac_55,
+    reg           clk_en_sqrt,
                   div_divisor_valid, div_1_dividend_valid, div_2_dividend_valid, div_3_dividend_valid, div_4_dividend_valid,
                   sqrt_data_valid,
                   count_en, initial_reg_1;
     reg   [3 : 0] clk_en_div;
+    reg   [9 : 0] clk_en_mac;
     reg  [31 : 0] sqrt_out;
     reg  [63 : 0] run_sum_22, run_sum_32, run_sum_42, run_sum_52,
                   run_sum_33, run_sum_43, run_sum_53,
@@ -106,24 +82,6 @@ module cholesky (
                   run_sum_55;
 
     reg [COUNT_WIDTH-1 : 0] count;
-
-    // Refer TODO above, this block is temporary
-    always @(posedge clk) begin
-        clk_en_mac_22 <= clk_en;
-        clk_en_mac_32 <= clk_en;
-        clk_en_mac_42 <= clk_en;
-        clk_en_mac_52 <= clk_en;
-        clk_en_mac_33 <= clk_en;
-        clk_en_mac_43 <= clk_en;
-        clk_en_mac_53 <= clk_en;
-        clk_en_mac_44 <= clk_en;
-        clk_en_mac_54 <= clk_en;
-        clk_en_mac_55 <= clk_en;
-        clk_en_div_sub_1 <= clk_en;
-        clk_en_div_sub_2 <= clk_en;
-        clk_en_div_sub_3 <= clk_en;
-        clk_en_div_sub_4 <= clk_en;
-    end
 
     // For the first operation by the square root module
     always @(posedge clk) begin
@@ -198,6 +156,7 @@ module cholesky (
 
             clk_en_div <= 4'b0000;
             clk_en_sqrt <= 1'b0;
+            clk_en_mac <= 10'b00_0000_0000;
         end else begin
             case (state)
                 S_IDLE: begin
@@ -214,6 +173,7 @@ module cholesky (
                     end
 
                     clk_en_div <= 4'b0000;
+                    clk_en_mac <= 10'b00_0000_0000;
                 end
                 S_COL_1: begin
                     if (s_count == S_COL_1_LAT) begin
@@ -234,6 +194,11 @@ module cholesky (
                         clk_en_div <= 4'b1111;
                     end else begin
                         clk_en_div <= 4'b0000;
+                    end
+                    if (s_count >= SQRT_LATENCY + DIV_LATENCY - 1 && s_count <= SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) begin
+                        clk_en_mac <= 10'b11_1111_1111;
+                    end else begin
+                        clk_en_mac <= 10'b00_0000_0000;
                     end
                 end
                 S_COL_2: begin
@@ -256,6 +221,11 @@ module cholesky (
                     end else begin
                         clk_en_div <= 4'b0000;
                     end
+                    if (s_count >= SQRT_LATENCY + DIV_LATENCY + 2 * PRE_LATENCY - 1 && s_count <= SQRT_LATENCY + DIV_LATENCY + 2 * PRE_LATENCY + MAC_LATENCY) begin
+                        clk_en_mac <= 10'b11_1111_0000;
+                    end else begin
+                        clk_en_mac <= 10'b00_0000_0000;
+                    end
                 end
                 S_COL_3: begin
                     if (s_count == S_COL_I_LAT) begin
@@ -277,6 +247,11 @@ module cholesky (
                     end else begin
                         clk_en_div <= 4'b0000;
                     end
+                    if (s_count >= SQRT_LATENCY + DIV_LATENCY + 2 * PRE_LATENCY - 1 && s_count <= SQRT_LATENCY + DIV_LATENCY + 2 * PRE_LATENCY + MAC_LATENCY) begin
+                        clk_en_mac <= 10'b11_1000_0000;
+                    end else begin
+                        clk_en_mac <= 10'b00_0000_0000;
+                    end
                 end
                 S_COL_4: begin
                     if (s_count == S_COL_I_LAT) begin
@@ -297,6 +272,11 @@ module cholesky (
                         clk_en_div <= 4'b0001;
                     end else begin
                         clk_en_div <= 4'b0000;
+                    end
+                    if (s_count >= SQRT_LATENCY + DIV_LATENCY + 2 * PRE_LATENCY - 1 && s_count <= SQRT_LATENCY + DIV_LATENCY + 2 * PRE_LATENCY + MAC_LATENCY) begin
+                        clk_en_mac <= 10'b10_0000_0000;
+                    end else begin
+                        clk_en_mac <= 10'b00_0000_0000;
                     end
                 end
                 S_COL_5: begin
@@ -379,7 +359,7 @@ module cholesky (
     cholesky_ip_sub_const div_sub_1 (
         .A   (div_1_out_t[48 : 17]),
         .CLK (clk),
-        .CE  (clk_en_div_sub_1),
+        .CE  (clk_en_div[0]),
         .S   (div_1_sub_out)
         );
     assign div_1_out = (div_1_out_t[16]) ? {div_1_sub_out[15 : 0], div_1_out_t[15 : 0]} : {div_1_out_t[32 : 17], div_1_out_t[15 : 0]};
@@ -399,7 +379,7 @@ module cholesky (
     cholesky_ip_sub_const div_sub_2 (
         .A   (div_2_out_t[48 : 17]),
         .CLK (clk),
-        .CE  (clk_en_div_sub_2),
+        .CE  (clk_en_div[1]),
         .S   (div_2_sub_out)
         );
     assign div_2_out = (div_2_out_t[16]) ? {div_2_sub_out[15 : 0], div_2_out_t[15 : 0]} : {div_2_out_t[32 : 17], div_2_out_t[15 : 0]};
@@ -419,7 +399,7 @@ module cholesky (
     cholesky_ip_sub_const div_sub_3 (
         .A   (div_3_out_t[48 : 17]),
         .CLK (clk),
-        .CE  (clk_en_div_sub_3),
+        .CE  (clk_en_div[2]),
         .S   (div_3_sub_out)
         );
     assign div_3_out = (div_3_out_t[16]) ? {div_3_sub_out[15 : 0], div_3_out_t[15 : 0]} : {div_3_out_t[32 : 17], div_3_out_t[15 : 0]};
@@ -439,7 +419,7 @@ module cholesky (
     cholesky_ip_sub_const div_sub_4 (
         .A   (div_4_out_t[48 : 17]),
         .CLK (clk),
-        .CE  (clk_en_div_sub_4),
+        .CE  (clk_en_div[3]),
         .S   (div_4_sub_out)
         );
     assign div_4_out = (div_4_out_t[16]) ? {div_4_sub_out[15 : 0], div_4_out_t[15 : 0]} : {div_4_out_t[32 : 17], div_4_out_t[15 : 0]};
@@ -466,7 +446,7 @@ module cholesky (
     pe_matrix_ip_mac mac_22 (
         .CLK      (clk),
         .SCLR     (sclr_mac_22),
-        .CE       (clk_en_mac_22),
+        .CE       (clk_en_mac[0]),
         .A        (mac_22_a),
         .B        (mac_22_a),
         .C        (run_sum_22),
@@ -488,7 +468,7 @@ module cholesky (
     pe_matrix_ip_mac mac_32 (
         .CLK      (clk),
         .SCLR     (sclr_mac_32),
-        .CE       (clk_en_mac_32),
+        .CE       (clk_en_mac[1]),
         .A        (mac_32_a),
         .B        (mac_32_b),
         .C        (run_sum_32),
@@ -510,7 +490,7 @@ module cholesky (
     pe_matrix_ip_mac mac_42 (
         .CLK      (clk),
         .SCLR     (sclr_mac_42),
-        .CE       (clk_en_mac_42),
+        .CE       (clk_en_mac[2]),
         .A        (mac_42_a),
         .B        (mac_42_b),
         .C        (run_sum_42),
@@ -532,7 +512,7 @@ module cholesky (
     pe_matrix_ip_mac mac_52 (
         .CLK      (clk),
         .SCLR     (sclr_mac_52),
-        .CE       (clk_en_mac_52),
+        .CE       (clk_en_mac[3]),
         .A        (mac_52_a),
         .B        (mac_52_b),
         .C        (run_sum_52),
@@ -555,7 +535,7 @@ module cholesky (
     pe_matrix_ip_mac mac_33 (
         .CLK      (clk),
         .SCLR     (sclr_mac_33),
-        .CE       (clk_en_mac_33),
+        .CE       (clk_en_mac[4]),
         .A        (mac_33_a),
         .B        (mac_33_a),
         .C        (run_sum_33),
@@ -578,7 +558,7 @@ module cholesky (
     pe_matrix_ip_mac mac_43 (
         .CLK      (clk),
         .SCLR     (sclr_mac_43),
-        .CE       (clk_en_mac_43),
+        .CE       (clk_en_mac[5]),
         .A        (mac_43_a),
         .B        (mac_43_b),
         .C        (run_sum_43),
@@ -601,7 +581,7 @@ module cholesky (
     pe_matrix_ip_mac mac_53 (
         .CLK      (clk),
         .SCLR     (sclr_mac_53),
-        .CE       (clk_en_mac_53),
+        .CE       (clk_en_mac[6]),
         .A        (mac_53_a),
         .B        (mac_53_b),
         .C        (run_sum_53),
@@ -625,7 +605,7 @@ module cholesky (
     pe_matrix_ip_mac mac_44 (
         .CLK      (clk),
         .SCLR     (sclr_mac_44),
-        .CE       (clk_en_mac_44),
+        .CE       (clk_en_mac[7]),
         .A        (mac_44_a),
         .B        (mac_44_a),
         .C        (run_sum_44),
@@ -649,7 +629,7 @@ module cholesky (
     pe_matrix_ip_mac mac_54 (
         .CLK      (clk),
         .SCLR     (sclr_mac_54),
-        .CE       (clk_en_mac_54),
+        .CE       (clk_en_mac[8]),
         .A        (mac_54_a),
         .B        (mac_54_b),
         .C        (run_sum_54),
@@ -674,7 +654,7 @@ module cholesky (
     pe_matrix_ip_mac mac_55 (
         .CLK      (clk),
         .SCLR     (sclr_mac_55),
-        .CE       (clk_en_mac_55),
+        .CE       (clk_en_mac[9]),
         .A        (mac_55_a),
         .B        (mac_55_a),
         .C        (run_sum_55),
