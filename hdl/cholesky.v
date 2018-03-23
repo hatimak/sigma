@@ -183,12 +183,15 @@ module cholesky (
             mac_54_c <= {64{1'b0}};
             mac_55_a <= {32{1'b0}};
             mac_55_c <= {64{1'b0}};
+
+            L <= {480{1'b0}};
         end else begin
             case (state)
                 S_IDLE: begin
                     if (A_valid) begin
                         state <= S_COL_1;
                         s_count <= 8'b0000_0001;
+                        L <= {480{1'b0}};
 
                         clk_en_sqrt <= 1'b1;
                         sqrt_data <= A_11;
@@ -307,6 +310,16 @@ module cholesky (
                         mac_55_a <= div_4_out;
                         mac_55_c <= {64{1'b0}};
                     end
+
+                    // Extract elements of the lower Cholesky factor
+                    // ---------------------------------------------
+                    if (s_count == S_COL_1_LAT) begin
+                        L[31 : 0]    <= sqrt_out;  // L_11
+                        L[63 : 32]   <= div_1_out; // L_21
+                        L[127 : 96]  <= div_2_out; // L_31
+                        L[223 : 192] <= div_3_out; // L_41
+                        L[351 : 320] <= div_4_out; // L_51
+                    end
                 end
                 S_COL_2: begin
                     if (s_count == S_COL_I_LAT) begin
@@ -375,6 +388,15 @@ module cholesky (
                         mac_55_a <= div_3_out;
                         mac_55_c <= mac_55_p;
                     end
+
+                    // Extract elements of the lower Cholesky factor
+                    // ---------------------------------------------
+                    if (s_count == S_COL_I_LAT) begin
+                        L[95 : 64]   <= sqrt_out;  // L_22
+                        L[159 : 128] <= div_1_out; // L_32
+                        L[255 : 224] <= div_2_out; // L_42
+                        L[383 : 352] <= div_3_out; // L_52
+                    end
                 end
                 S_COL_3: begin
                     if (s_count == S_COL_I_LAT) begin
@@ -433,6 +455,14 @@ module cholesky (
                         mac_55_a <= div_2_out;
                         mac_55_c <= mac_55_p;
                     end
+
+                    // Extract elements of the lower Cholesky factor
+                    // ---------------------------------------------
+                    if (s_count == S_COL_I_LAT) begin
+                        L[191 : 160] <= sqrt_out;  // L_33
+                        L[287 : 256] <= div_1_out; // L_43
+                        L[415 : 384] <= div_2_out; // L_53
+                    end
                 end
                 S_COL_4: begin
                     if (s_count == S_COL_I_LAT) begin
@@ -484,12 +514,20 @@ module cholesky (
                         mac_55_a <= div_1_out;
                         mac_55_c <= mac_55_p;
                     end
+
+                    // Extract elements of the lower Cholesky factor
+                    // ---------------------------------------------
+                    if (s_count == S_COL_I_LAT) begin
+                        L[319 : 288] <= sqrt_out;  // L_44
+                        L[447 : 416] <= div_1_out; // L_54
+                    end
                 end
                 S_COL_5: begin
                     if (s_count == S_COL_N_LAT) begin
                         if (A_valid) begin
                             state <= S_COL_1;
                             s_count <= 8'b0000_0001;
+                            L <= {480{1'b0}};
 
                             clk_en_sqrt <= 1'b1;
                             sqrt_data <= A_11;
@@ -515,6 +553,12 @@ module cholesky (
                     // --------------------
                     if (s_count == PRE_LATENCY) begin
                         sqrt_data <= pre_sub_sq_out;
+                    end
+
+                    // Extract elements of the lower Cholesky factor
+                    // ---------------------------------------------
+                    if (s_count == S_COL_N_LAT) begin
+                        L[479 : 448] <= sqrt_out;  // L_55
                     end
                 end
             endcase
@@ -857,38 +901,5 @@ module cholesky (
 
     assign pre_sub_3_a  = A_52;
     assign pre_sub_3_b  = mac_52_p[47 : 16];
-
-// ================================================================================
-    /* Extract elements of the lower Cholesky factor
-     * ---------------------------------------------
-     */
-
-    always @(posedge clk) begin
-        if (rst) begin
-            L <= {480{1'b0}};
-        end else begin
-            if (count == COL_1_LATENCY) begin
-                L[31 : 0]    <= sqrt_out;  // L_11
-                L[63 : 32]   <= div_1_out; // L_21
-                L[127 : 96]  <= div_2_out; // L_31
-                L[223 : 192] <= div_3_out; // L_41
-                L[351 : 320] <= div_4_out; // L_51
-            end else if (count == COL_2_LATENCY) begin
-                L[95 : 64]   <= sqrt_out;  // L_22
-                L[159 : 128] <= div_1_out; // L_32
-                L[255 : 224] <= div_2_out; // L_42
-                L[383 : 352] <= div_3_out; // L_52
-            end else if (count == COL_3_LATENCY) begin
-                L[191 : 160] <= sqrt_out;  // L_33
-                L[287 : 256] <= div_1_out; // L_43
-                L[415 : 384] <= div_2_out; // L_53
-            end else if (count == COL_4_LATENCY) begin
-                L[319 : 288] <= sqrt_out;  // L_44
-                L[447 : 416] <= div_1_out; // L_54
-             end else if (count == COL_5_LATENCY) begin
-                L[479 : 448] <= sqrt_out;  // L_55
-            end
-        end
-    end
 
 endmodule
