@@ -13,7 +13,7 @@ set_property -dict [list \
 	CONFIG.A_Width {32} \
 	CONFIG.B_Width {32} \
 	CONFIG.Add_Mode {Subtract} \
-	CONFIG.CE {false} \
+	CONFIG.CE {true} \
 	CONFIG.Out_Width {32} \
 	CONFIG.Latency {1} \
 	CONFIG.B_Value {00000000000000000000000000000000} \
