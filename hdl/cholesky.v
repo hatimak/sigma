@@ -17,7 +17,7 @@ module cholesky (
     localparam DIV_SUB_LATENCY = 1; // The output of divider generator IP needs to be "formatted" so extra latency here
     localparam DIV_LATENCY     = 53 + DIV_SUB_LATENCY + 1; // 1 more than the latency reported by "IP Customization" dialog of Vivado (specific to Vivado only).
     localparam SQRT_LATENCY    = 27; // 1 more than the latency reported by "IP Customization" dialog of Vivado (specific to Vivado only).
-    localparam MAC_LATENCY     = 9;
+    localparam MAC_LATENCY     = 10; // 1 more than the latency reported by "IP Customization" dialog of Vivado (specific to Vivado only).
     localparam PRE_LATENCY     = 2; // 1 more than the latency reported by "IP Customization" dialog of Vivado (specific to Vivado only).
 
     /* Computation of column 1 of Cholesky factor takes (SQRT_LATENCY + DIV_LATENCY + MAC_LATENCY) cycles
@@ -58,7 +58,6 @@ module cholesky (
     wire [31 : 0] div_1_sub_out, div_2_sub_out, div_3_sub_out, div_4_sub_out,
                   div_1_out, div_2_out, div_3_out, div_4_out,
                   sqrt_out,
-                  pre_sub_1_a, pre_sub_1_b, pre_sub_2_a, pre_sub_2_b, pre_sub_3_a, pre_sub_3_b, pre_sub_sq_a, pre_sub_sq_b,
                   pre_sub_1_out, pre_sub_2_out, pre_sub_3_out, pre_sub_sq_out;
     wire [55 : 0] div_1_out_t, div_2_out_t, div_3_out_t, div_4_out_t;
     wire [63 : 0] mac_22_p, mac_32_p, mac_42_p, mac_52_p,
@@ -68,7 +67,9 @@ module cholesky (
     reg           clk_en_sqrt, sqrt_data_valid_d1, sqrt_data_valid_d2, count_en;
     reg   [3 : 0] clk_en_div, clk_en_pre_sub, div_dividend_valid_d1, div_dividend_valid_d2;
     reg   [9 : 0] clk_en_mac;
-    reg  [31 : 0] sqrt_data, div_divisor, div_dividend [3 : 0],
+    reg  [31 : 0] pre_sub_1_a, pre_sub_1_b, pre_sub_2_a, pre_sub_2_b, pre_sub_3_a, pre_sub_3_b, pre_sub_sq_a, pre_sub_sq_b,
+                  sqrt_data,
+                  div_divisor, div_dividend [3 : 0],
                   mac_22_a, mac_32_a, mac_32_b, mac_42_a, mac_42_b, mac_52_a, mac_52_b,
                   mac_33_a, mac_43_a, mac_43_b, mac_53_a, mac_53_b,
                   mac_44_a, mac_54_a, mac_54_b,
@@ -151,6 +152,14 @@ module cholesky (
             clk_en_div <= 4'b0000;
             clk_en_mac <= 10'b00_0000_0000;
 
+            pre_sub_1_a <= {32{1'b0}};
+            pre_sub_1_b <= {32{1'b0}};
+            pre_sub_2_a <= {32{1'b0}};
+            pre_sub_2_b <= {32{1'b0}};
+            pre_sub_3_a <= {32{1'b0}};
+            pre_sub_3_b <= {32{1'b0}};
+            pre_sub_sq_a <= {32{1'b0}};
+            pre_sub_sq_b <= {32{1'b0}};
             sqrt_data <= {32{1'b0}};
             div_divisor <= {{15{1'b0}}, 1'b1, {16{1'b0}}}; // Don't want 0.0 in the denominator, so 1.0
             div_dividend[0] <= {32{1'b0}};
@@ -207,6 +216,14 @@ module cholesky (
                     clk_en_div <= 4'b0000;
                     clk_en_mac <= 10'b00_0000_0000;
 
+                    pre_sub_1_a <= {32{1'b0}};
+                    pre_sub_1_b <= {32{1'b0}};
+                    pre_sub_2_a <= {32{1'b0}};
+                    pre_sub_2_b <= {32{1'b0}};
+                    pre_sub_3_a <= {32{1'b0}};
+                    pre_sub_3_b <= {32{1'b0}};
+                    pre_sub_sq_a <= {32{1'b0}};
+                    pre_sub_sq_b <= {32{1'b0}};
                     div_divisor <= {{15{1'b0}}, 1'b1, {16{1'b0}}}; // Don't want 0.0 in the denominator, so 1.0
                     div_dividend[0] <= {32{1'b0}};
                     div_dividend[1] <= {32{1'b0}};
@@ -245,6 +262,9 @@ module cholesky (
                         s_count <= 8'b0000_0001;
 
                         clk_en_sqrt <= 1'b1;
+
+                        pre_sub_sq_a <= A_22;
+                        pre_sub_sq_b <= mac_22_p[47 : 16];
                     end else begin
                         state <= S_COL_1;
                         s_count <= s_count + 8'b0000_0001;
@@ -252,6 +272,9 @@ module cholesky (
                         if (s_count > SQRT_LATENCY) begin
                             clk_en_sqrt <= 1'b0;
                         end
+
+                        pre_sub_sq_a <= {32{1'b0}};
+                        pre_sub_sq_b <= {32{1'b0}};
                     end
 
                     // Clock enable signals
@@ -327,6 +350,9 @@ module cholesky (
                         s_count <= 8'b0000_0001;
 
                         clk_en_sqrt <= 1'b1;
+
+                        pre_sub_sq_a <= A_33;
+                        pre_sub_sq_b <= mac_33_p[47 : 16];
                     end else begin
                         state <= S_COL_2;
                         s_count <= s_count + 8'b0000_0001;
@@ -334,6 +360,9 @@ module cholesky (
                         if (s_count > PRE_LATENCY + SQRT_LATENCY) begin
                             clk_en_sqrt <= 1'b0;
                         end
+
+                        pre_sub_sq_a <= {32{1'b0}};
+                        pre_sub_sq_b <= {32{1'b0}};
                     end
 
                     // Clock enable signals
@@ -360,6 +389,14 @@ module cholesky (
 
                     // Data input signals
                     // --------------------
+                    if (s_count == PRE_LATENCY + SQRT_LATENCY) begin
+                        pre_sub_1_a <= A_32;
+                        pre_sub_1_b <= mac_32_p[47 : 16];
+                        pre_sub_2_a <= A_42;
+                        pre_sub_2_b <= mac_42_p[47 : 16];
+                        pre_sub_3_a <= A_52;
+                        pre_sub_3_b <= mac_52_p[47 : 16];
+                    end
                     if (s_count == PRE_LATENCY) begin
                         sqrt_data <= pre_sub_sq_out;
                     end
@@ -404,6 +441,9 @@ module cholesky (
                         s_count <= 8'b0000_0001;
 
                         clk_en_sqrt <= 1'b1;
+
+                        pre_sub_sq_a <= A_44;
+                        pre_sub_sq_b <= mac_44_p[47 : 16];
                     end else begin
                         state <= S_COL_3;
                         s_count <= s_count + 8'b0000_0001;
@@ -411,6 +451,9 @@ module cholesky (
                         if (s_count > PRE_LATENCY + SQRT_LATENCY) begin
                             clk_en_sqrt <= 1'b0;
                         end
+
+                        pre_sub_sq_a <= {32{1'b0}};
+                        pre_sub_sq_b <= {32{1'b0}};
                     end
 
                     // Clock enable signals
@@ -437,6 +480,12 @@ module cholesky (
 
                     // Data input signals
                     // --------------------
+                    if (s_count == PRE_LATENCY + SQRT_LATENCY) begin
+                        pre_sub_1_a <= A_43;
+                        pre_sub_1_b <= mac_43_p[47 : 16];
+                        pre_sub_2_a <= A_53;
+                        pre_sub_2_b <= mac_53_p[47 : 16];
+                    end
                     if (s_count == PRE_LATENCY) begin
                         sqrt_data <= pre_sub_sq_out;
                     end
@@ -470,6 +519,9 @@ module cholesky (
                         s_count <= 8'b0000_0001;
 
                         clk_en_sqrt <= 1'b1;
+
+                        pre_sub_sq_a <= A_55;
+                        pre_sub_sq_b <= mac_55_p[47 : 16];
                     end else begin
                         state <= S_COL_4;
                         s_count <= s_count + 8'b0000_0001;
@@ -477,6 +529,9 @@ module cholesky (
                         if (s_count > PRE_LATENCY + SQRT_LATENCY) begin
                             clk_en_sqrt <= 1'b0;
                         end
+
+                        pre_sub_sq_a <= {32{1'b0}};
+                        pre_sub_sq_b <= {32{1'b0}};
                     end
 
                     // Clock enable signals
@@ -503,6 +558,10 @@ module cholesky (
 
                     // Data input signals
                     // --------------------
+                    if (s_count == PRE_LATENCY + SQRT_LATENCY) begin
+                        pre_sub_1_a <= A_54;
+                        pre_sub_1_b <= mac_54_p[47 : 16];
+                    end
                     if (s_count == PRE_LATENCY) begin
                         sqrt_data <= pre_sub_sq_out;
                     end
@@ -877,29 +936,5 @@ module cholesky (
         .CE  (clk_en_pre_sub[3]),
         .S   (pre_sub_sq_out)
         );
-
-// ================================================================================
-    /* Setup input data signals
-     * ------------------------
-     */
-
-    assign pre_sub_sq_a = (count >= COL_4_LATENCY) ? A_55 :
-                          (count >= COL_3_LATENCY) ? A_44 :
-                          (count >= COL_2_LATENCY) ? A_33 : A_22;
-    assign pre_sub_sq_b = (count >= COL_4_LATENCY) ? mac_55_p[47 : 16] :
-                          (count >= COL_3_LATENCY) ? mac_44_p[47 : 16] :
-                          (count >= COL_2_LATENCY) ? mac_33_p[47 : 16] : mac_22_p[47 : 16];
-
-
-    assign pre_sub_1_a  = (count >= COL_3_LATENCY) ? A_54 :
-                          (count >= COL_2_LATENCY) ? A_43 : A_32;
-    assign pre_sub_1_b  = (count >= COL_3_LATENCY) ? mac_54_p[47 : 16] :
-                          (count >= COL_2_LATENCY) ? mac_43_p[47 : 16] : mac_32_p[47 : 16];
-
-    assign pre_sub_2_a  = (count >= COL_2_LATENCY) ? A_53 : A_42;
-    assign pre_sub_2_b  = (count >= COL_2_LATENCY) ? mac_53_p[47 : 16] : mac_42_p[47 : 16];
-
-    assign pre_sub_3_a  = A_52;
-    assign pre_sub_3_b  = mac_52_p[47 : 16];
 
 endmodule
