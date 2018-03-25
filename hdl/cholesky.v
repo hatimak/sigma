@@ -60,25 +60,16 @@ module cholesky (
                   sqrt_out,
                   pre_sub_1_out, pre_sub_2_out, pre_sub_3_out, pre_sub_sq_out;
     wire [55 : 0] div_1_out_t, div_2_out_t, div_3_out_t, div_4_out_t;
-    wire [63 : 0] mac_22_p, mac_32_p, mac_42_p, mac_52_p,
-                  mac_33_p, mac_43_p, mac_53_p,
-                  mac_44_p, mac_54_p,
-                  mac_55_p;
+    wire [63 : 0] mac_22_p, mac_32_p, mac_42_p, mac_52_p;
     reg           clk_en_sqrt, sqrt_data_valid_d1, sqrt_data_valid_d2, count_en;
-    reg   [3 : 0] clk_en_div, clk_en_pre_sub, div_dividend_valid_d1, div_dividend_valid_d2;
+    reg   [3 : 0] clk_en_div, clk_en_mac, clk_en_pre_sub, div_dividend_valid_d1, div_dividend_valid_d2;
     reg   [5 : 0] state;
-    reg   [9 : 0] clk_en_mac;
     reg  [31 : 0] pre_sub_1_a, pre_sub_1_b, pre_sub_2_a, pre_sub_2_b, pre_sub_3_a, pre_sub_3_b, pre_sub_sq_a, pre_sub_sq_b,
                   sqrt_data,
                   div_divisor, div_dividend [3 : 0],
-                  mac_22_a, mac_32_a, mac_32_b, mac_42_a, mac_42_b, mac_52_a, mac_52_b,
-                  mac_33_a, mac_43_a, mac_43_b, mac_53_a, mac_53_b,
-                  mac_44_a, mac_54_a, mac_54_b,
-                  mac_55_a;
-    reg  [63 : 0] mac_22_c, mac_32_c, mac_42_c, mac_52_c,
-                  mac_33_c, mac_43_c, mac_53_c,
-                  mac_44_c, mac_54_c,
-                  mac_55_c;
+                  mac_22_a, mac_32_a, mac_32_b, mac_42_a, mac_42_b, mac_52_a, mac_52_b;
+    reg  [63 : 0] mac_22_c, mac_32_c, mac_42_c, mac_52_c;
+    reg  [63 : 0] run_sum [9 : 0];
 
     reg [COUNT_WIDTH-1 : 0] s_count;
 
@@ -90,7 +81,7 @@ module cholesky (
             clk_en_pre_sub <= 4'b0000;
             clk_en_sqrt <= 1'b0;
             clk_en_div <= 4'b0000;
-            clk_en_mac <= 10'b00_0000_0000;
+            clk_en_mac <= 4'b0000;
 
             pre_sub_1_a <= {32{1'b0}};
             pre_sub_1_b <= {32{1'b0}};
@@ -117,21 +108,16 @@ module cholesky (
             mac_52_a <= {32{1'b0}};
             mac_52_b <= {32{1'b0}};
             mac_52_c <= {64{1'b0}};
-            mac_33_a <= {32{1'b0}};
-            mac_33_c <= {64{1'b0}};
-            mac_43_a <= {32{1'b0}};
-            mac_43_b <= {32{1'b0}};
-            mac_43_c <= {64{1'b0}};
-            mac_53_a <= {32{1'b0}};
-            mac_53_b <= {32{1'b0}};
-            mac_53_c <= {64{1'b0}};
-            mac_44_a <= {32{1'b0}};
-            mac_44_c <= {64{1'b0}};
-            mac_54_a <= {32{1'b0}};
-            mac_54_b <= {32{1'b0}};
-            mac_54_c <= {64{1'b0}};
-            mac_55_a <= {32{1'b0}};
-            mac_55_c <= {64{1'b0}};
+            run_sum[0] <= {64{1'b0}};
+            run_sum[1] <= {64{1'b0}};
+            run_sum[2] <= {64{1'b0}};
+            run_sum[3] <= {64{1'b0}};
+            run_sum[4] <= {64{1'b0}};
+            run_sum[5] <= {64{1'b0}};
+            run_sum[6] <= {64{1'b0}};
+            run_sum[7] <= {64{1'b0}};
+            run_sum[8] <= {64{1'b0}};
+            run_sum[9] <= {64{1'b0}};
 
             L <= {480{1'b0}};
             L_valid <= 1'b0;
@@ -156,7 +142,7 @@ module cholesky (
 
                     clk_en_pre_sub <= 4'b0000;
                     clk_en_div <= 4'b0000;
-                    clk_en_mac <= 10'b00_0000_0000;
+                    clk_en_mac <= 4'b0000;
 
                     pre_sub_1_a <= {32{1'b0}};
                     pre_sub_1_b <= {32{1'b0}};
@@ -182,21 +168,16 @@ module cholesky (
                     mac_52_a <= {32{1'b0}};
                     mac_52_b <= {32{1'b0}};
                     mac_52_c <= {64{1'b0}};
-                    mac_33_a <= {32{1'b0}};
-                    mac_33_c <= {64{1'b0}};
-                    mac_43_a <= {32{1'b0}};
-                    mac_43_b <= {32{1'b0}};
-                    mac_43_c <= {64{1'b0}};
-                    mac_53_a <= {32{1'b0}};
-                    mac_53_b <= {32{1'b0}};
-                    mac_53_c <= {64{1'b0}};
-                    mac_44_a <= {32{1'b0}};
-                    mac_44_c <= {64{1'b0}};
-                    mac_54_a <= {32{1'b0}};
-                    mac_54_b <= {32{1'b0}};
-                    mac_54_c <= {64{1'b0}};
-                    mac_55_a <= {32{1'b0}};
-                    mac_55_c <= {64{1'b0}};
+                    run_sum[0] <= {64{1'b0}};
+                    run_sum[1] <= {64{1'b0}};
+                    run_sum[2] <= {64{1'b0}};
+                    run_sum[3] <= {64{1'b0}};
+                    run_sum[4] <= {64{1'b0}};
+                    run_sum[5] <= {64{1'b0}};
+                    run_sum[6] <= {64{1'b0}};
+                    run_sum[7] <= {64{1'b0}};
+                    run_sum[8] <= {64{1'b0}};
+                    run_sum[9] <= {64{1'b0}};
                 end
                 S_COL_1: begin
                     if (s_count == COL_1_LATENCY) begin
@@ -207,6 +188,12 @@ module cholesky (
 
                         pre_sub_sq_a <= A_22;
                         pre_sub_sq_b <= mac_22_p[47 : 16];
+
+                        // Extract running sum from MAC units
+                        run_sum[0] <= mac_22_p; // L_22
+                        run_sum[1] <= mac_32_p; // L_32
+                        run_sum[2] <= mac_42_p; // L_42
+                        run_sum[3] <= mac_52_p; // L_52
                     end else begin
                         state <= S_COL_1;
                         s_count <= s_count + 8'b0000_0001;
@@ -228,11 +215,6 @@ module cholesky (
                         clk_en_div <= 4'b1111;
                     end else begin
                         clk_en_div <= 4'b0000;
-                    end
-                    if (s_count >= SQRT_SAMPLE + DIV_SAMPLE - 1 && s_count <= SQRT_SAMPLE + DIV_SAMPLE + MAC_SAMPLE) begin
-                        clk_en_mac <= 10'b11_1111_1111;
-                    end else begin
-                        clk_en_mac <= 10'b00_0000_0000;
                     end
 
                     // Data input signals
@@ -256,24 +238,6 @@ module cholesky (
                         mac_52_a <= div_1_out;
                         mac_52_b <= div_4_out;
                         mac_52_c <= {64{1'b0}};
-
-                        mac_33_a <= div_2_out;
-                        mac_33_c <= {64{1'b0}};
-                        mac_43_a <= div_2_out;
-                        mac_43_b <= div_3_out;
-                        mac_43_c <= {64{1'b0}};
-                        mac_53_a <= div_2_out;
-                        mac_53_b <= div_4_out;
-                        mac_53_c <= {64{1'b0}};
-
-                        mac_44_a <= div_3_out;
-                        mac_44_c <= {64{1'b0}};
-                        mac_54_a <= div_3_out;
-                        mac_54_b <= div_4_out;
-                        mac_54_c <= {64{1'b0}};
-
-                        mac_55_a <= div_4_out;
-                        mac_55_c <= {64{1'b0}};
                     end
 
                     // Extract elements of the lower Cholesky factor
@@ -294,7 +258,12 @@ module cholesky (
                         clk_en_sqrt <= 1'b1;
 
                         pre_sub_sq_a <= A_33;
-                        pre_sub_sq_b <= mac_33_p[47 : 16];
+                        pre_sub_sq_b <= mac_22_p[47 : 16];
+
+                        // Extract running sum from MAC units
+                        run_sum[4] <= mac_22_p; // L_33
+                        run_sum[5] <= mac_32_p; // L_43
+                        run_sum[6] <= mac_42_p; // L_53
                     end else begin
                         state <= S_COL_2;
                         s_count <= s_count + 8'b0000_0001;
@@ -323,21 +292,47 @@ module cholesky (
                     end else begin
                         clk_en_div <= 4'b0000;
                     end
-                    if (s_count >= SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE - 1 && s_count <= SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE + MAC_SAMPLE) begin
-                        clk_en_mac <= 10'b11_1111_0000;
-                    end else begin
-                        clk_en_mac <= 10'b00_0000_0000;
-                    end
+
+                    // "Lazy forward accumulations"
+                    // ----------------------------
+                    if (s_count == 1 + 3 * MAC_SAMPLE) begin
+                        run_sum[9] <= mac_22_p; // L_55
+                    end else if (s_count == 1 + 2 * MAC_SAMPLE) begin
+                        mac_22_a <= div_4_out;
+                        mac_22_c <= {64{1'b0}};
+
+                        run_sum[7] <= mac_22_p; // L_44
+                        run_sum[8] <= mac_32_p; // L_54
+                    end else if (s_count == 1 + MAC_SAMPLE) begin
+                        mac_22_a <= div_3_out;
+                        mac_22_c <= {64{1'b0}};
+                        mac_32_a <= div_3_out;
+                        mac_32_b <= div_4_out;
+                        mac_32_c <= {64{1'b0}};
+
+                        run_sum[4] <= mac_22_p; // L_33
+                        run_sum[5] <= mac_32_p; // L_43
+                        run_sum[6] <= mac_42_p; // L_53
+                    end else if (s_count == 1) begin
+                        mac_22_a <= div_2_out;
+                        mac_22_c <= {64{1'b0}};
+                        mac_32_a <= div_2_out;
+                        mac_32_b <= div_3_out;
+                        mac_32_c <= {64{1'b0}};
+                        mac_42_a <= div_2_out;
+                        mac_42_b <= div_4_out;
+                        mac_42_c <= {64{1'b0}};
+                    end else 
 
                     // Data input signals
                     // --------------------
                     if (s_count == PRE_SAMPLE + SQRT_SAMPLE) begin
                         pre_sub_1_a <= A_32;
-                        pre_sub_1_b <= mac_32_p[47 : 16];
+                        pre_sub_1_b <= run_sum[1][47 : 16];
                         pre_sub_2_a <= A_42;
-                        pre_sub_2_b <= mac_42_p[47 : 16];
+                        pre_sub_2_b <= run_sum[2][47 : 16];
                         pre_sub_3_a <= A_52;
-                        pre_sub_3_b <= mac_52_p[47 : 16];
+                        pre_sub_3_b <= run_sum[3][47 : 16];
                     end
                     if (s_count == PRE_SAMPLE) begin
                         sqrt_data <= pre_sub_sq_out;
@@ -349,23 +344,14 @@ module cholesky (
                         div_dividend[2] <= pre_sub_3_out;
                     end
                     if (s_count == SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE) begin
-                        mac_33_a <= div_1_out;
-                        mac_33_c <= mac_33_p;
-                        mac_43_a <= div_1_out;
-                        mac_43_b <= div_2_out;
-                        mac_43_c <= mac_43_p;
-                        mac_53_a <= div_1_out;
-                        mac_53_b <= div_3_out;
-                        mac_53_c <= mac_53_p;
-
-                        mac_44_a <= div_2_out;
-                        mac_44_c <= mac_44_p;
-                        mac_54_a <= div_2_out;
-                        mac_54_b <= div_3_out;
-                        mac_54_c <= mac_54_p;
-
-                        mac_55_a <= div_3_out;
-                        mac_55_c <= mac_55_p;
+                        mac_22_a <= div_1_out;
+                        mac_22_c <= run_sum[4]; // L_33
+                        mac_32_a <= div_1_out;
+                        mac_32_b <= div_2_out;
+                        mac_32_c <= run_sum[5]; // L_43
+                        mac_42_a <= div_1_out;
+                        mac_42_b <= div_3_out;
+                        mac_42_c <= run_sum[6]; // L_53
                     end
 
                     // Extract elements of the lower Cholesky factor
@@ -385,7 +371,11 @@ module cholesky (
                         clk_en_sqrt <= 1'b1;
 
                         pre_sub_sq_a <= A_44;
-                        pre_sub_sq_b <= mac_44_p[47 : 16];
+                        pre_sub_sq_b <= mac_22_p[47 : 16];
+
+                        // Extract running sum from MAC units
+                        run_sum[7] <= mac_22_p; // L_44
+                        run_sum[8] <= mac_32_p; // L_54
                     end else begin
                         state <= S_COL_3;
                         s_count <= s_count + 8'b0000_0001;
@@ -414,19 +404,32 @@ module cholesky (
                     end else begin
                         clk_en_div <= 4'b0000;
                     end
-                    if (s_count >= SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE - 1 && s_count <= SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE + MAC_SAMPLE) begin
-                        clk_en_mac <= 10'b11_1000_0000;
-                    end else begin
-                        clk_en_mac <= 10'b00_0000_0000;
-                    end
+
+                    // "Lazy forward accumulations"
+                    // ----------------------------
+                    if (s_count == 1 + 2 * MAC_SAMPLE) begin
+                        run_sum[9] <= mac_22_p; // L_55
+                    end else if (s_count == 1 + MAC_SAMPLE) begin
+                        mac_22_a <= div_3_out;
+                        mac_22_c <= run_sum[9]; // L_55
+
+                        run_sum[7] <= mac_22_p; // L_44
+                        run_sum[8] <= mac_32_p; // L_54
+                    end else if (s_count == 1) begin
+                        mac_22_a <= div_2_out;
+                        mac_22_c <= run_sum[7]; // L_44
+                        mac_32_a <= div_2_out;
+                        mac_32_b <= div_3_out;
+                        mac_32_c <= run_sum[8]; // L_54
+                    end 
 
                     // Data input signals
                     // --------------------
                     if (s_count == PRE_SAMPLE + SQRT_SAMPLE) begin
                         pre_sub_1_a <= A_43;
-                        pre_sub_1_b <= mac_43_p[47 : 16];
+                        pre_sub_1_b <= run_sum[5][47 : 16];
                         pre_sub_2_a <= A_53;
-                        pre_sub_2_b <= mac_53_p[47 : 16];
+                        pre_sub_2_b <= run_sum[6][47 : 16];
                     end
                     if (s_count == PRE_SAMPLE) begin
                         sqrt_data <= pre_sub_sq_out;
@@ -437,14 +440,11 @@ module cholesky (
                         div_dividend[1] <= pre_sub_2_out;
                     end
                     if (s_count == SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE) begin
-                        mac_44_a <= div_1_out;
-                        mac_44_c <= mac_44_p;
-                        mac_54_a <= div_1_out;
-                        mac_54_b <= div_2_out;
-                        mac_54_c <= mac_54_p;
-
-                        mac_55_a <= div_2_out;
-                        mac_55_c <= mac_55_p;
+                        mac_22_a <= div_1_out;
+                        mac_22_c <= run_sum[7]; // L_44
+                        mac_32_a <= div_1_out;
+                        mac_32_b <= div_2_out;
+                        mac_32_c <= run_sum[8]; // L_54
                     end
 
                     // Extract elements of the lower Cholesky factor
@@ -463,7 +463,10 @@ module cholesky (
                         clk_en_sqrt <= 1'b1;
 
                         pre_sub_sq_a <= A_55;
-                        pre_sub_sq_b <= mac_55_p[47 : 16];
+                        pre_sub_sq_b <= mac_22_p[47 : 16];
+
+                        // Extract running sum from MAC units
+                        L[479 : 448] <= mac_22_p[47 : 16]; // L_55
                     end else begin
                         state <= S_COL_4;
                         s_count <= s_count + 8'b0000_0001;
@@ -492,17 +495,21 @@ module cholesky (
                     end else begin
                         clk_en_div <= 4'b0000;
                     end
-                    if (s_count >= SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE - 1 && s_count <= SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE + MAC_SAMPLE) begin
-                        clk_en_mac <= 10'b10_0000_0000;
-                    end else begin
-                        clk_en_mac <= 10'b00_0000_0000;
+
+                    // "Lazy forward accumulations"
+                    // ----------------------------
+                    if (s_count == 1 + MAC_SAMPLE) begin
+                        run_sum[9] <= mac_22_p; // L_55
+                    end else if (s_count == 1) begin
+                        mac_22_a <= div_2_out;
+                        mac_22_c <= run_sum[9]; // L_55
                     end
 
                     // Data input signals
                     // --------------------
                     if (s_count == PRE_SAMPLE + SQRT_SAMPLE) begin
                         pre_sub_1_a <= A_54;
-                        pre_sub_1_b <= mac_54_p[47 : 16];
+                        pre_sub_1_b <= run_sum[8][47 : 16];
                     end
                     if (s_count == PRE_SAMPLE) begin
                         sqrt_data <= pre_sub_sq_out;
@@ -512,8 +519,8 @@ module cholesky (
                         div_dividend[0] <= pre_sub_1_out;
                     end
                     if (s_count == SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE) begin
-                        mac_55_a <= div_1_out;
-                        mac_55_c <= mac_55_p;
+                        mac_22_a <= div_1_out;
+                        mac_22_c <= run_sum[9]; // L_55
                     end
 
                     // Extract elements of the lower Cholesky factor
@@ -682,17 +689,15 @@ module cholesky (
     assign div_4_out = (div_4_out_t[16]) ? {div_4_sub_out[15 : 0], div_4_out_t[15 : 0]} : {div_4_out_t[32 : 17], div_4_out_t[15 : 0]};
 
 // ================================================================================
-    /* (1 / 2) * (N - 1) * (N) Multiply-ACcumulate (MAC) modules
+    /* N - 1 Multiply-ACcumulate (MAC) modules
      * ---------------------------------------------------------
      * Latency is MAC_SAMPLE
-     * Module mac_ij is paired to L_ij, and mac_ij performs (j - 1) MAC operations.
      */
 
-    // Paired to L_22 (square module)
-    pe_matrix_ip_mac mac_22 (
+    pe_matrix_ip_mac mac_0 (
         .CLK      (clk),
         .SCLR     (rst),
-        .CE       (clk_en_mac[0]),
+        .CE       (1'b1),
         .A        (mac_22_a),
         .B        (mac_22_a),
         .C        (mac_22_c),
@@ -701,11 +706,10 @@ module cholesky (
         .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
         );
 
-    // Paired to L_32
-    pe_matrix_ip_mac mac_32 (
+    pe_matrix_ip_mac mac_1 (
         .CLK      (clk),
         .SCLR     (rst),
-        .CE       (clk_en_mac[1]),
+        .CE       (1'b1),
         .A        (mac_32_a),
         .B        (mac_32_b),
         .C        (mac_32_c),
@@ -714,11 +718,10 @@ module cholesky (
         .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
         );
 
-    // Paired to L_42
-    pe_matrix_ip_mac mac_42 (
+    pe_matrix_ip_mac mac_2 (
         .CLK      (clk),
         .SCLR     (rst),
-        .CE       (clk_en_mac[2]),
+        .CE       (1'b1),
         .A        (mac_42_a),
         .B        (mac_42_b),
         .C        (mac_42_c),
@@ -727,97 +730,15 @@ module cholesky (
         .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
         );
 
-    // Paired to L_52
-    pe_matrix_ip_mac mac_52 (
+    pe_matrix_ip_mac mac_3 (
         .CLK      (clk),
         .SCLR     (rst),
-        .CE       (clk_en_mac[3]),
+        .CE       (1'b1),
         .A        (mac_52_a),
         .B        (mac_52_b),
         .C        (mac_52_c),
         .SUBTRACT (1'b0), // Add
         .P        (mac_52_p),
-        .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
-        );
-
-// --------------------------------------------------------------------------------
-    // Paired to L_33 (square module)
-    pe_matrix_ip_mac mac_33 (
-        .CLK      (clk),
-        .SCLR     (rst),
-        .CE       (clk_en_mac[4]),
-        .A        (mac_33_a),
-        .B        (mac_33_a),
-        .C        (mac_33_c),
-        .SUBTRACT (1'b0), // Add
-        .P        (mac_33_p),
-        .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
-        );
-
-    // Paired to L_43
-    pe_matrix_ip_mac mac_43 (
-        .CLK      (clk),
-        .SCLR     (rst),
-        .CE       (clk_en_mac[5]),
-        .A        (mac_43_a),
-        .B        (mac_43_b),
-        .C        (mac_43_c),
-        .SUBTRACT (1'b0), // Add
-        .P        (mac_43_p),
-        .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
-        );
-
-    // Paired to L_53
-    pe_matrix_ip_mac mac_53 (
-        .CLK      (clk),
-        .SCLR     (rst),
-        .CE       (clk_en_mac[6]),
-        .A        (mac_53_a),
-        .B        (mac_53_b),
-        .C        (mac_53_c),
-        .SUBTRACT (1'b0), // Add
-        .P        (mac_53_p),
-        .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
-        );
-
-// --------------------------------------------------------------------------------
-    // Paired to L_44 (square module)
-    pe_matrix_ip_mac mac_44 (
-        .CLK      (clk),
-        .SCLR     (rst),
-        .CE       (clk_en_mac[7]),
-        .A        (mac_44_a),
-        .B        (mac_44_a),
-        .C        (mac_44_c),
-        .SUBTRACT (1'b0), // Add
-        .P        (mac_44_p),
-        .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
-        );
-
-    // Paired to L_54
-    pe_matrix_ip_mac mac_54 (
-        .CLK      (clk),
-        .SCLR     (rst),
-        .CE       (clk_en_mac[8]),
-        .A        (mac_54_a),
-        .B        (mac_54_b),
-        .C        (mac_54_c),
-        .SUBTRACT (1'b0), // Add
-        .P        (mac_54_p),
-        .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
-        );
-
-// --------------------------------------------------------------------------------
-    // Paired to L_55 (square module)
-    pe_matrix_ip_mac mac_55 (
-        .CLK      (clk),
-        .SCLR     (rst),
-        .CE       (clk_en_mac[9]),
-        .A        (mac_55_a),
-        .B        (mac_55_a),
-        .C        (mac_55_c),
-        .SUBTRACT (1'b0), // Add
-        .P        (mac_55_p),
         .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
         );
 
