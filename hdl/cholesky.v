@@ -216,6 +216,11 @@ module cholesky (
                     end else begin
                         clk_en_div <= 4'b0000;
                     end
+                    if (s_count == SQRT_SAMPLE + DIV_SAMPLE - 1) begin
+                        clk_en_mac <= 4'b1111;
+                    end else if (s_count == COL_1_LATENCY) begin
+                        clk_en_mac <= 4'b0111;
+                    end
 
                     // Data input signals
                     // --------------------
@@ -291,6 +296,17 @@ module cholesky (
                         clk_en_div <= 4'b0111;
                     end else begin
                         clk_en_div <= 4'b0000;
+                    end
+                    if (s_count == 1 + MAC_SAMPLE) begin
+                        clk_en_mac <= 4'b0011;
+                    end else if (s_count == 1 + 2 * MAC_SAMPLE) begin
+                        clk_en_mac <= 4'b0001;
+                    end else if (s_count == 1 + 3 * MAC_SAMPLE) begin
+                        clk_en_mac <= 4'b0000;
+                    end else if (s_count == SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE - 1) begin
+                        clk_en_mac <= 4'b0111;
+                    end else if (s_count == COL_I_LATENCY) begin
+                        clk_en_mac <= 4'b0011;
                     end
 
                     // "Lazy forward accumulations"
@@ -404,6 +420,15 @@ module cholesky (
                     end else begin
                         clk_en_div <= 4'b0000;
                     end
+                    if (s_count == 1 + MAC_SAMPLE) begin
+                        clk_en_mac <= 4'b0001;
+                    end else if (s_count == 1 + 2 * MAC_SAMPLE) begin
+                        clk_en_mac <= 4'b0000;
+                    end else if (s_count == SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE - 1) begin
+                        clk_en_mac <= 4'b0011;
+                    end else if (s_count == COL_I_LATENCY) begin
+                        clk_en_mac <= 4'b0001;
+                    end
 
                     // "Lazy forward accumulations"
                     // ----------------------------
@@ -494,6 +519,13 @@ module cholesky (
                         clk_en_div <= 4'b0001;
                     end else begin
                         clk_en_div <= 4'b0000;
+                    end
+                    if (s_count == 1 + MAC_SAMPLE) begin
+                        clk_en_mac <= 4'b0000;
+                    end else if (s_count == SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE - 1) begin
+                        clk_en_mac <= 4'b0001;
+                    end else if (s_count == COL_I_LATENCY) begin
+                        clk_en_mac <= 4'b0000;
                     end
 
                     // "Lazy forward accumulations"
@@ -697,7 +729,7 @@ module cholesky (
     pe_matrix_ip_mac mac_0 (
         .CLK      (clk),
         .SCLR     (rst),
-        .CE       (1'b1),
+        .CE       (clk_en_mac[0]),
         .A        (mac_22_a),
         .B        (mac_22_a),
         .C        (mac_22_c),
@@ -709,7 +741,7 @@ module cholesky (
     pe_matrix_ip_mac mac_1 (
         .CLK      (clk),
         .SCLR     (rst),
-        .CE       (1'b1),
+        .CE       (clk_en_mac[1]),
         .A        (mac_32_a),
         .B        (mac_32_b),
         .C        (mac_32_c),
@@ -721,7 +753,7 @@ module cholesky (
     pe_matrix_ip_mac mac_2 (
         .CLK      (clk),
         .SCLR     (rst),
-        .CE       (1'b1),
+        .CE       (clk_en_mac[2]),
         .A        (mac_42_a),
         .B        (mac_42_b),
         .C        (mac_42_c),
@@ -733,7 +765,7 @@ module cholesky (
     pe_matrix_ip_mac mac_3 (
         .CLK      (clk),
         .SCLR     (rst),
-        .CE       (1'b1),
+        .CE       (clk_en_mac[3]),
         .A        (mac_52_a),
         .B        (mac_52_b),
         .C        (mac_52_c),
