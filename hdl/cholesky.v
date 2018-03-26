@@ -60,15 +60,15 @@ module cholesky (
                   sqrt_out,
                   pre_sub_1_out, pre_sub_2_out, pre_sub_3_out, pre_sub_sq_out;
     wire [55 : 0] div_1_out_t, div_2_out_t, div_3_out_t, div_4_out_t;
-    wire [63 : 0] mac_22_p, mac_32_p, mac_42_p, mac_52_p;
+    wire [63 : 0] mac_0_p, mac_1_p, mac_2_p, mac_3_p;
     reg           clk_en_sqrt, sqrt_data_valid_d1, sqrt_data_valid_d2, count_en;
     reg   [3 : 0] clk_en_div, clk_en_mac, clk_en_pre_sub, div_dividend_valid_d1, div_dividend_valid_d2;
     reg   [5 : 0] state;
     reg  [31 : 0] pre_sub_1_a, pre_sub_1_b, pre_sub_2_a, pre_sub_2_b, pre_sub_3_a, pre_sub_3_b, pre_sub_sq_a, pre_sub_sq_b,
                   sqrt_data,
                   div_divisor, div_dividend [3 : 0],
-                  mac_22_a, mac_32_a, mac_32_b, mac_42_a, mac_42_b, mac_52_a, mac_52_b;
-    reg  [63 : 0] mac_22_c, mac_32_c, mac_42_c, mac_52_c;
+                  mac_0_a, mac_1_a, mac_1_b, mac_2_a, mac_2_b, mac_3_a, mac_3_b;
+    reg  [63 : 0] mac_c [3 : 0];
     reg  [63 : 0] run_sum [9 : 0];
 
     reg [COUNT_WIDTH-1 : 0] s_count;
@@ -97,17 +97,17 @@ module cholesky (
             div_dividend[1] <= {32{1'b0}};
             div_dividend[2] <= {32{1'b0}};
             div_dividend[3] <= {32{1'b0}};
-            mac_22_a <= {32{1'b0}};
-            mac_22_c <= {64{1'b0}};
-            mac_32_a <= {32{1'b0}};
-            mac_32_b <= {32{1'b0}};
-            mac_32_c <= {64{1'b0}};
-            mac_42_a <= {32{1'b0}};
-            mac_42_b <= {32{1'b0}};
-            mac_42_c <= {64{1'b0}};
-            mac_52_a <= {32{1'b0}};
-            mac_52_b <= {32{1'b0}};
-            mac_52_c <= {64{1'b0}};
+            mac_0_a <= {32{1'b0}};
+            mac_c[0] <= {64{1'b0}};
+            mac_1_a <= {32{1'b0}};
+            mac_1_b <= {32{1'b0}};
+            mac_c[1] <= {64{1'b0}};
+            mac_2_a <= {32{1'b0}};
+            mac_2_b <= {32{1'b0}};
+            mac_c[2] <= {64{1'b0}};
+            mac_3_a <= {32{1'b0}};
+            mac_3_b <= {32{1'b0}};
+            mac_c[3] <= {64{1'b0}};
             run_sum[0] <= {64{1'b0}};
             run_sum[1] <= {64{1'b0}};
             run_sum[2] <= {64{1'b0}};
@@ -126,100 +126,68 @@ module cholesky (
                 S_IDLE: begin
                     if (A_valid) begin
                         state <= S_COL_1;
+                    end else begin
+                        state <= S_IDLE;
+                    end
+
+                    // State counter
+                    // -------------
+                    if (A_valid) begin
                         s_count <= 8'b0000_0001;
+                    end else begin
+                        s_count <= 8'b0000_0000;
+                    end
+
+                    // Setup signals prior to commencing operations
+                    // --------------------------------------------
+                    if (A_valid) begin
+                        sqrt_data <= A_11;
+                        mac_0_a <= {32{1'b0}};
+                        mac_c[0] <= {64{1'b0}};
+                        mac_1_a <= {32{1'b0}};
+                        mac_1_b <= {32{1'b0}};
+                        mac_c[1] <= {64{1'b0}};
+                        mac_2_a <= {32{1'b0}};
+                        mac_2_b <= {32{1'b0}};
+                        mac_c[2] <= {64{1'b0}};
+                        mac_3_a <= {32{1'b0}};
+                        mac_3_b <= {32{1'b0}};
+                        mac_c[3] <= {64{1'b0}};
+
                         L <= {480{1'b0}};
                         L_valid <= 1'b0;
 
-                        clk_en_sqrt <= 1'b1;
-                        sqrt_data <= A_11;
-                    end else begin
-                        state <= S_IDLE;
-                        s_count <= 8'b0000_0000;
-
-                        clk_en_sqrt <= 1'b0;
-                        sqrt_data <= {32{1'b0}};
+                        clk_en_sqrt <= 1'b1; // Enable clock for the first operation, square root
                     end
-
-                    clk_en_pre_sub <= 4'b0000;
-                    clk_en_div <= 4'b0000;
-                    clk_en_mac <= 4'b0000;
-
-                    pre_sub_1_a <= {32{1'b0}};
-                    pre_sub_1_b <= {32{1'b0}};
-                    pre_sub_2_a <= {32{1'b0}};
-                    pre_sub_2_b <= {32{1'b0}};
-                    pre_sub_3_a <= {32{1'b0}};
-                    pre_sub_3_b <= {32{1'b0}};
-                    pre_sub_sq_a <= {32{1'b0}};
-                    pre_sub_sq_b <= {32{1'b0}};
-                    div_divisor <= {{15{1'b0}}, 1'b1, {16{1'b0}}}; // Don't want 0.0 in the denominator, so 1.0.
-                    div_dividend[0] <= {32{1'b0}};
-                    div_dividend[1] <= {32{1'b0}};
-                    div_dividend[2] <= {32{1'b0}};
-                    div_dividend[3] <= {32{1'b0}};
-                    mac_22_a <= {32{1'b0}};
-                    mac_22_c <= {64{1'b0}};
-                    mac_32_a <= {32{1'b0}};
-                    mac_32_b <= {32{1'b0}};
-                    mac_32_c <= {64{1'b0}};
-                    mac_42_a <= {32{1'b0}};
-                    mac_42_b <= {32{1'b0}};
-                    mac_42_c <= {64{1'b0}};
-                    mac_52_a <= {32{1'b0}};
-                    mac_52_b <= {32{1'b0}};
-                    mac_52_c <= {64{1'b0}};
-                    run_sum[0] <= {64{1'b0}};
-                    run_sum[1] <= {64{1'b0}};
-                    run_sum[2] <= {64{1'b0}};
-                    run_sum[3] <= {64{1'b0}};
-                    run_sum[4] <= {64{1'b0}};
-                    run_sum[5] <= {64{1'b0}};
-                    run_sum[6] <= {64{1'b0}};
-                    run_sum[7] <= {64{1'b0}};
-                    run_sum[8] <= {64{1'b0}};
-                    run_sum[9] <= {64{1'b0}};
                 end
                 S_COL_1: begin
                     if (s_count == COL_1_LATENCY) begin
                         state <= S_COL_2;
-                        s_count <= 8'b0000_0001;
-
-                        clk_en_sqrt <= 1'b1;
-
-                        pre_sub_sq_a <= A_22;
-                        pre_sub_sq_b <= mac_22_p[47 : 16];
-
-                        // Extract running sum from MAC units
-                        run_sum[0] <= mac_22_p; // L_22
-                        run_sum[1] <= mac_32_p; // L_32
-                        run_sum[2] <= mac_42_p; // L_42
-                        run_sum[3] <= mac_52_p; // L_52
                     end else begin
                         state <= S_COL_1;
-                        s_count <= s_count + 8'b0000_0001;
-                        
-                        if (s_count > SQRT_SAMPLE) begin
-                            clk_en_sqrt <= 1'b0;
-                        end
+                    end
 
-                        pre_sub_sq_a <= {32{1'b0}};
-                        pre_sub_sq_b <= {32{1'b0}};
+                    // State counter
+                    // -------------
+                    if (s_count == COL_1_LATENCY) begin
+                        s_count <= 8'b0000_0001;
+                    end else begin
+                        s_count <= s_count + 8'b0000_0001;
                     end
 
                     // Clock enable signals
                     // --------------------
-                    if (s_count == COL_1_LATENCY) begin
-                        clk_en_pre_sub <= 4'b1000; // Enable clock to Pre-formatter module dedicated to square root module (MSB).
-                    end
-                    if (s_count >= SQRT_SAMPLE - 1 && s_count <= SQRT_SAMPLE + DIV_SAMPLE) begin
+                    if (s_count == SQRT_SAMPLE - 1) begin
                         clk_en_div <= 4'b1111;
-                    end else begin
+                    end else if (s_count == SQRT_SAMPLE) begin
+                        clk_en_sqrt <= 1'b0;
+                    end else if (s_count == SQRT_SAMPLE + DIV_SAMPLE) begin
                         clk_en_div <= 4'b0000;
-                    end
-                    if (s_count == SQRT_SAMPLE + DIV_SAMPLE - 1) begin
                         clk_en_mac <= 4'b1111;
                     end else if (s_count == COL_1_LATENCY) begin
                         clk_en_mac <= 4'b0111;
+                        clk_en_pre_sub <= 4'b1000; // Enable clock to Pre-formatter module dedicated to square root module (MSB).
+                        clk_en_sqrt <= 1'b1;
                     end
 
                     // Data input signals
@@ -230,19 +198,29 @@ module cholesky (
                         div_dividend[1] <= A_31;
                         div_dividend[2] <= A_41;
                         div_dividend[3] <= A_51;
+                    end else if (s_count == SQRT_SAMPLE + DIV_SAMPLE) begin
+                        mac_0_a <= div_1_out;
+                        mac_1_a <= div_1_out;
+                        mac_1_b <= div_2_out;
+                        mac_2_a <= div_1_out;
+                        mac_2_b <= div_3_out;
+                        mac_3_a <= div_1_out;
+                        mac_3_b <= div_4_out;
+                    end else if (s_count == COL_1_LATENCY) begin
+                        pre_sub_sq_a <= A_22;
+                        pre_sub_sq_b <= mac_0_p[47 : 16];
+
+                        // Reset input signals to unused modules.
+                        div_dividend[3] <= {32{1'b0}};
                     end
-                    if (s_count == SQRT_SAMPLE + DIV_SAMPLE) begin
-                        mac_22_a <= div_1_out;
-                        mac_22_c <= {64{1'b0}};
-                        mac_32_a <= div_1_out;
-                        mac_32_b <= div_2_out;
-                        mac_32_c <= {64{1'b0}};
-                        mac_42_a <= div_1_out;
-                        mac_42_b <= div_3_out;
-                        mac_42_c <= {64{1'b0}};
-                        mac_52_a <= div_1_out;
-                        mac_52_b <= div_4_out;
-                        mac_52_c <= {64{1'b0}};
+
+                    // Extract running sum from MAC units
+                    // ----------------------------------
+                    if (s_count == COL_1_LATENCY) begin
+                        run_sum[0] <= mac_0_p; // L_22
+                        run_sum[1] <= mac_1_p; // L_32
+                        run_sum[2] <= mac_2_p; // L_42
+                        run_sum[3] <= mac_3_p; // L_52
                     end
 
                     // Extract elements of the lower Cholesky factor
@@ -258,116 +236,114 @@ module cholesky (
                 S_COL_2: begin
                     if (s_count == COL_I_LATENCY) begin
                         state <= S_COL_3;
-                        s_count <= 8'b0000_0001;
-
-                        clk_en_sqrt <= 1'b1;
-
-                        pre_sub_sq_a <= A_33;
-                        pre_sub_sq_b <= mac_22_p[47 : 16];
-
-                        // Extract running sum from MAC units
-                        run_sum[4] <= mac_22_p; // L_33
-                        run_sum[5] <= mac_32_p; // L_43
-                        run_sum[6] <= mac_42_p; // L_53
                     end else begin
                         state <= S_COL_2;
+                    end
+
+                    // State counter
+                    // -------------
+                    if (s_count == COL_I_LATENCY) begin
+                        s_count <= 8'b0000_0001;
+                    end else begin
                         s_count <= s_count + 8'b0000_0001;
-
-                        if (s_count > PRE_SAMPLE + SQRT_SAMPLE) begin
-                            clk_en_sqrt <= 1'b0;
-                        end
-
-                        pre_sub_sq_a <= {32{1'b0}};
-                        pre_sub_sq_b <= {32{1'b0}};
                     end
 
                     // Clock enable signals
                     // --------------------
-                    if (s_count == COL_I_LATENCY) begin
-                        clk_en_pre_sub <= 4'b1000; // Enable clock to Pre-formatter module dedicated to square root module (MSB).
-                    end else if (s_count == PRE_SAMPLE + 1) begin
-                        clk_en_pre_sub <= 4'b0000; // Disable clock to Pre-formatter module dedicated to square root module (MSB).
-                    end else if (s_count >= PRE_SAMPLE + SQRT_SAMPLE - 1 && s_count <= PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE) begin
-                        clk_en_pre_sub <= 4'b0111; // Enable clock to Pre-formatter module (non square root modules).
-                    end else if (s_count > PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE) begin
-                        clk_en_pre_sub <= 4'b0000;
-                    end
-                    if (s_count >= SQRT_SAMPLE + 2 * PRE_SAMPLE - 1 && s_count <= SQRT_SAMPLE + 2 * PRE_SAMPLE + DIV_SAMPLE) begin
-                        clk_en_div <= 4'b0111;
-                    end else begin
-                        clk_en_div <= 4'b0000;
-                    end
                     if (s_count == 1 + MAC_SAMPLE) begin
                         clk_en_mac <= 4'b0011;
                     end else if (s_count == 1 + 2 * MAC_SAMPLE) begin
                         clk_en_mac <= 4'b0001;
                     end else if (s_count == 1 + 3 * MAC_SAMPLE) begin
                         clk_en_mac <= 4'b0000;
-                    end else if (s_count == SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE - 1) begin
+                    end else if (s_count == PRE_SAMPLE) begin
+                        clk_en_pre_sub <= 4'b0000; // Disable clock to Pre-formatter module dedicated to square root module (MSB).
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE) begin
+                        clk_en_pre_sub <= 4'b0111; // Enable clock to Pre-formatter module (non square root modules).
+                        clk_en_sqrt <= 1'b0;
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE - 1) begin
+                        clk_en_div <= 4'b0111;
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE) begin
+                        clk_en_pre_sub <= 4'b0000;
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE + DIV_SAMPLE) begin
+                        clk_en_div <= 4'b0000;
                         clk_en_mac <= 4'b0111;
                     end else if (s_count == COL_I_LATENCY) begin
                         clk_en_mac <= 4'b0011;
+                        clk_en_pre_sub <= 4'b1000; // Enable clock to Pre-formatter module dedicated to square root module (MSB).
+                        clk_en_sqrt <= 1'b1;
                     end
 
                     // "Lazy forward accumulations"
                     // ----------------------------
-                    if (s_count == 1 + 3 * MAC_SAMPLE) begin
-                        run_sum[9] <= mac_22_p; // L_55
-                    end else if (s_count == 1 + 2 * MAC_SAMPLE) begin
-                        mac_22_a <= div_4_out;
-                        mac_22_c <= {64{1'b0}};
-
-                        run_sum[7] <= mac_22_p; // L_44
-                        run_sum[8] <= mac_32_p; // L_54
+                    if (s_count == 1) begin
+                        mac_0_a <= div_2_out;
+                        mac_1_a <= div_2_out;
+                        mac_1_b <= div_3_out;
+                        mac_2_a <= div_2_out;
+                        mac_2_b <= div_4_out;
                     end else if (s_count == 1 + MAC_SAMPLE) begin
-                        mac_22_a <= div_3_out;
-                        mac_22_c <= {64{1'b0}};
-                        mac_32_a <= div_3_out;
-                        mac_32_b <= div_4_out;
-                        mac_32_c <= {64{1'b0}};
+                        mac_0_a <= div_3_out;
+                        mac_1_a <= div_3_out;
+                        mac_1_b <= div_4_out;
 
-                        run_sum[4] <= mac_22_p; // L_33
-                        run_sum[5] <= mac_32_p; // L_43
-                        run_sum[6] <= mac_42_p; // L_53
-                    end else if (s_count == 1) begin
-                        mac_22_a <= div_2_out;
-                        mac_22_c <= {64{1'b0}};
-                        mac_32_a <= div_2_out;
-                        mac_32_b <= div_3_out;
-                        mac_32_c <= {64{1'b0}};
-                        mac_42_a <= div_2_out;
-                        mac_42_b <= div_4_out;
-                        mac_42_c <= {64{1'b0}};
-                    end else 
+                        run_sum[4] <= mac_0_p; // L_33
+                        run_sum[5] <= mac_1_p; // L_43
+                        run_sum[6] <= mac_2_p; // L_53
+                    end else if (s_count == 1 + 2 * MAC_SAMPLE) begin
+                        mac_0_a <= div_4_out;
+
+                        run_sum[7] <= mac_0_p; // L_44
+                        run_sum[8] <= mac_1_p; // L_54
+                    end else if (s_count == 1 + 3 * MAC_SAMPLE) begin
+                        run_sum[9] <= mac_0_p; // L_55
+                    end
 
                     // Data input signals
                     // --------------------
-                    if (s_count == PRE_SAMPLE + SQRT_SAMPLE) begin
+                    if (s_count == PRE_SAMPLE) begin
+                        sqrt_data <= pre_sub_sq_out;
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE) begin
                         pre_sub_1_a <= A_32;
                         pre_sub_1_b <= run_sum[1][47 : 16];
                         pre_sub_2_a <= A_42;
                         pre_sub_2_b <= run_sum[2][47 : 16];
                         pre_sub_3_a <= A_52;
                         pre_sub_3_b <= run_sum[3][47 : 16];
-                    end
-                    if (s_count == PRE_SAMPLE) begin
-                        sqrt_data <= pre_sub_sq_out;
-                    end
-                    if (s_count == SQRT_SAMPLE + 2 * PRE_SAMPLE) begin
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE) begin
                         div_divisor <= sqrt_out;
                         div_dividend[0] <= pre_sub_1_out;
                         div_dividend[1] <= pre_sub_2_out;
                         div_dividend[2] <= pre_sub_3_out;
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE + DIV_SAMPLE) begin
+                        mac_0_a <= div_1_out;
+                        mac_c[0] <= run_sum[4]; // L_33
+                        mac_1_a <= div_1_out;
+                        mac_1_b <= div_2_out;
+                        mac_c[1] <= run_sum[5]; // L_43
+                        mac_2_a <= div_1_out;
+                        mac_2_b <= div_3_out;
+                        mac_c[2] <= run_sum[6]; // L_53
+                    end else if (s_count == COL_I_LATENCY) begin // Set up inputs for first operation of next state.
+                        pre_sub_sq_a <= A_33;
+                        pre_sub_sq_b <= mac_0_p[47 : 16];
+
+                        // Reset input signals to unused modules.
+                        div_dividend[2] <= {32{1'b0}};
+                        pre_sub_3_a <= {32{1'b0}};
+                        pre_sub_3_b <= {32{1'b0}};
+                        run_sum[0] <= {64{1'b0}}; // L_22
+                        run_sum[1] <= {64{1'b0}}; // L_32
+                        run_sum[2] <= {64{1'b0}}; // L_42
+                        run_sum[3] <= {64{1'b0}}; // L_52
                     end
-                    if (s_count == SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE) begin
-                        mac_22_a <= div_1_out;
-                        mac_22_c <= run_sum[4]; // L_33
-                        mac_32_a <= div_1_out;
-                        mac_32_b <= div_2_out;
-                        mac_32_c <= run_sum[5]; // L_43
-                        mac_42_a <= div_1_out;
-                        mac_42_b <= div_3_out;
-                        mac_42_c <= run_sum[6]; // L_53
+
+                    // Extract running sum from MAC units
+                    // ----------------------------------
+                    if (s_count == COL_I_LATENCY) begin
+                        run_sum[4] <= mac_0_p; // L_33
+                        run_sum[5] <= mac_1_p; // L_43
+                        run_sum[6] <= mac_2_p; // L_53
                     end
 
                     // Extract elements of the lower Cholesky factor
@@ -382,94 +358,97 @@ module cholesky (
                 S_COL_3: begin
                     if (s_count == COL_I_LATENCY) begin
                         state <= S_COL_4;
-                        s_count <= 8'b0000_0001;
-
-                        clk_en_sqrt <= 1'b1;
-
-                        pre_sub_sq_a <= A_44;
-                        pre_sub_sq_b <= mac_22_p[47 : 16];
-
-                        // Extract running sum from MAC units
-                        run_sum[7] <= mac_22_p; // L_44
-                        run_sum[8] <= mac_32_p; // L_54
                     end else begin
                         state <= S_COL_3;
+                    end
+
+                    // State counter
+                    // -------------
+                    if (s_count == COL_I_LATENCY) begin
+                        s_count <= 8'b0000_0001;
+                    end else begin
                         s_count <= s_count + 8'b0000_0001;
-
-                        if (s_count > PRE_SAMPLE + SQRT_SAMPLE) begin
-                            clk_en_sqrt <= 1'b0;
-                        end
-
-                        pre_sub_sq_a <= {32{1'b0}};
-                        pre_sub_sq_b <= {32{1'b0}};
                     end
 
                     // Clock enable signals
                     // --------------------
-                    if (s_count == COL_I_LATENCY) begin
-                        clk_en_pre_sub <= 4'b1000; // Enable clock to Pre-formatter module dedicated to square root module (MSB).
-                    end else if (s_count == PRE_SAMPLE + 1) begin
-                        clk_en_pre_sub <= 4'b0000; // Disable clock to Pre-formatter module dedicated to square root module (MSB).
-                    end else if (s_count >= PRE_SAMPLE + SQRT_SAMPLE - 1 && s_count <= PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE) begin
-                        clk_en_pre_sub <= 4'b0011; // Enable clock to Pre-formatter module (non square root modules).
-                    end else if (s_count > PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE) begin
-                        clk_en_pre_sub <= 4'b0000;
-                    end
-                    if (s_count >= SQRT_SAMPLE + 2 * PRE_SAMPLE - 1 && s_count <= SQRT_SAMPLE + 2 * PRE_SAMPLE + DIV_SAMPLE) begin
-                        clk_en_div <= 4'b0011;
-                    end else begin
-                        clk_en_div <= 4'b0000;
-                    end
                     if (s_count == 1 + MAC_SAMPLE) begin
                         clk_en_mac <= 4'b0001;
                     end else if (s_count == 1 + 2 * MAC_SAMPLE) begin
                         clk_en_mac <= 4'b0000;
-                    end else if (s_count == SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE - 1) begin
+                    end else if (s_count == PRE_SAMPLE) begin
+                        clk_en_pre_sub <= 4'b0000; // Disable clock to Pre-formatter module dedicated to square root module (MSB).
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE) begin
+                        clk_en_sqrt <= 1'b0;
+                        clk_en_pre_sub <= 4'b0011; // Enable clock to Pre-formatter module (non square root modules).
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE - 1) begin
+                        clk_en_div <= 4'b0011;
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE) begin
+                        clk_en_pre_sub <= 4'b0000;
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE + DIV_SAMPLE) begin
+                        clk_en_div <= 4'b0000;
                         clk_en_mac <= 4'b0011;
                     end else if (s_count == COL_I_LATENCY) begin
                         clk_en_mac <= 4'b0001;
+                        clk_en_pre_sub <= 4'b1000; // Enable clock to Pre-formatter module dedicated to square root module (MSB).
+                        clk_en_sqrt <= 1'b1;
                     end
 
                     // "Lazy forward accumulations"
                     // ----------------------------
-                    if (s_count == 1 + 2 * MAC_SAMPLE) begin
-                        run_sum[9] <= mac_22_p; // L_55
+                    if (s_count == 1) begin
+                        mac_0_a <= div_2_out;
+                        mac_c[0] <= run_sum[7]; // L_44
+                        mac_1_a <= div_2_out;
+                        mac_1_b <= div_3_out;
+                        mac_c[1] <= run_sum[8]; // L_54
                     end else if (s_count == 1 + MAC_SAMPLE) begin
-                        mac_22_a <= div_3_out;
-                        mac_22_c <= run_sum[9]; // L_55
+                        mac_0_a <= div_3_out;
+                        mac_c[0] <= run_sum[9]; // L_55
 
-                        run_sum[7] <= mac_22_p; // L_44
-                        run_sum[8] <= mac_32_p; // L_54
-                    end else if (s_count == 1) begin
-                        mac_22_a <= div_2_out;
-                        mac_22_c <= run_sum[7]; // L_44
-                        mac_32_a <= div_2_out;
-                        mac_32_b <= div_3_out;
-                        mac_32_c <= run_sum[8]; // L_54
-                    end 
+                        run_sum[7] <= mac_0_p; // L_44
+                        run_sum[8] <= mac_1_p; // L_54
+                    end else if (s_count == 1 + 2 * MAC_SAMPLE) begin
+                        run_sum[9] <= mac_0_p; // L_55
+                    end
 
                     // Data input signals
                     // --------------------
-                    if (s_count == PRE_SAMPLE + SQRT_SAMPLE) begin
+                    if (s_count == PRE_SAMPLE) begin
+                        sqrt_data <= pre_sub_sq_out;
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE) begin
                         pre_sub_1_a <= A_43;
                         pre_sub_1_b <= run_sum[5][47 : 16];
                         pre_sub_2_a <= A_53;
                         pre_sub_2_b <= run_sum[6][47 : 16];
-                    end
-                    if (s_count == PRE_SAMPLE) begin
-                        sqrt_data <= pre_sub_sq_out;
-                    end
-                    if (s_count == SQRT_SAMPLE + 2 * PRE_SAMPLE) begin
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE) begin
                         div_divisor <= sqrt_out;
                         div_dividend[0] <= pre_sub_1_out;
                         div_dividend[1] <= pre_sub_2_out;
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE + DIV_SAMPLE) begin
+                        mac_0_a <= div_1_out;
+                        mac_c[0] <= run_sum[7]; // L_44
+                        mac_1_a <= div_1_out;
+                        mac_1_b <= div_2_out;
+                        mac_c[1] <= run_sum[8]; // L_54
+                    end else if (s_count == COL_I_LATENCY) begin // Set up inputs for first operation of next state.
+                        pre_sub_sq_a <= A_44;
+                        pre_sub_sq_b <= mac_0_p[47 : 16];
+
+                        // Reset input signals to unused modules.
+                        div_dividend[1] <= {32{1'b0}};
+                        pre_sub_2_a <= {32{1'b0}};
+                        pre_sub_2_b <= {32{1'b0}};
+                        run_sum[4] <= {64{1'b0}}; // L_33
+                        run_sum[5] <= {64{1'b0}}; // L_43
+                        run_sum[6] <= {64{1'b0}}; // L_53
                     end
-                    if (s_count == SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE) begin
-                        mac_22_a <= div_1_out;
-                        mac_22_c <= run_sum[7]; // L_44
-                        mac_32_a <= div_1_out;
-                        mac_32_b <= div_2_out;
-                        mac_32_c <= run_sum[8]; // L_54
+
+                    // Extract running sum from MAC units
+                    // ----------------------------------
+                    if (s_count == COL_I_LATENCY) begin
+                        run_sum[7] <= mac_0_p; // L_44
+                        run_sum[8] <= mac_1_p; // L_54
                     end
 
                     // Extract elements of the lower Cholesky factor
@@ -483,76 +462,79 @@ module cholesky (
                 S_COL_4: begin
                     if (s_count == COL_I_LATENCY) begin
                         state <= S_COL_5;
-                        s_count <= 8'b0000_0001;
-
-                        clk_en_sqrt <= 1'b1;
-
-                        pre_sub_sq_a <= A_55;
-                        pre_sub_sq_b <= mac_22_p[47 : 16];
-
-                        // Extract running sum from MAC units
-                        L[479 : 448] <= mac_22_p[47 : 16]; // L_55
                     end else begin
                         state <= S_COL_4;
+                    end
+
+                    // State counter
+                    // -------------
+                    if (s_count == COL_I_LATENCY) begin
+                        s_count <= 8'b0000_0001;
+                    end else begin
                         s_count <= s_count + 8'b0000_0001;
-
-                        if (s_count > PRE_SAMPLE + SQRT_SAMPLE) begin
-                            clk_en_sqrt <= 1'b0;
-                        end
-
-                        pre_sub_sq_a <= {32{1'b0}};
-                        pre_sub_sq_b <= {32{1'b0}};
                     end
 
                     // Clock enable signals
                     // --------------------
-                    if (s_count == COL_I_LATENCY) begin
-                        clk_en_pre_sub <= 4'b1000; // Enable clock to Pre-formatter module dedicated to square root module (MSB).
-                    end else if (s_count == PRE_SAMPLE + 1) begin
-                        clk_en_pre_sub <= 4'b0000; // Disable clock to Pre-formatter module dedicated to square root module (MSB).
-                    end else if (s_count >= PRE_SAMPLE + SQRT_SAMPLE - 1 && s_count <= PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE) begin
-                        clk_en_pre_sub <= 4'b0001; // Enable clock to Pre-formatter module (non square root modules).
-                    end else if (s_count > PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE) begin
-                        clk_en_pre_sub <= 4'b0000;
-                    end
-                    if (s_count >= SQRT_SAMPLE + 2 * PRE_SAMPLE - 1 && s_count <= SQRT_SAMPLE + 2 * PRE_SAMPLE + DIV_SAMPLE) begin
-                        clk_en_div <= 4'b0001;
-                    end else begin
-                        clk_en_div <= 4'b0000;
-                    end
                     if (s_count == 1 + MAC_SAMPLE) begin
                         clk_en_mac <= 4'b0000;
-                    end else if (s_count == SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE - 1) begin
+                    end else if (s_count == PRE_SAMPLE) begin
+                        clk_en_pre_sub <= 4'b0000; // Disable clock to Pre-formatter module dedicated to square root module (MSB).
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE) begin
+                        clk_en_pre_sub <= 4'b0001; // Enable clock to Pre-formatter module (non square root modules).
+                        clk_en_sqrt <= 1'b0;
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE - 1) begin
+                        clk_en_div <= 4'b0001;
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE) begin
+                        clk_en_pre_sub <= 4'b0000;
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE + DIV_SAMPLE) begin
+                        clk_en_div <= 4'b0000;
                         clk_en_mac <= 4'b0001;
                     end else if (s_count == COL_I_LATENCY) begin
                         clk_en_mac <= 4'b0000;
+                        clk_en_pre_sub <= 4'b1000; // Enable clock to Pre-formatter module dedicated to square root module (MSB).
+                        clk_en_sqrt <= 1'b1;
                     end
 
                     // "Lazy forward accumulations"
                     // ----------------------------
                     if (s_count == 1 + MAC_SAMPLE) begin
-                        run_sum[9] <= mac_22_p; // L_55
+                        run_sum[9] <= mac_0_p; // L_55
                     end else if (s_count == 1) begin
-                        mac_22_a <= div_2_out;
-                        mac_22_c <= run_sum[9]; // L_55
+                        mac_0_a <= div_2_out;
+                        mac_c[0] <= run_sum[9]; // L_55
                     end
 
                     // Data input signals
                     // --------------------
-                    if (s_count == PRE_SAMPLE + SQRT_SAMPLE) begin
-                        pre_sub_1_a <= A_54;
-                        pre_sub_1_b <= run_sum[8][47 : 16];
-                    end
                     if (s_count == PRE_SAMPLE) begin
                         sqrt_data <= pre_sub_sq_out;
-                    end
-                    if (s_count == SQRT_SAMPLE + 2 * PRE_SAMPLE) begin
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE) begin
+                        pre_sub_1_a <= A_54;
+                        pre_sub_1_b <= run_sum[8][47 : 16];
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE) begin
                         div_divisor <= sqrt_out;
                         div_dividend[0] <= pre_sub_1_out;
+                    end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE + DIV_SAMPLE) begin
+                        mac_0_a <= div_1_out;
+                        mac_c[0] <= run_sum[9]; // L_55
+                    end else if (s_count == COL_I_LATENCY) begin // Set up inputs for first operation of next state.
+                        pre_sub_sq_a <= A_55;
+                        pre_sub_sq_b <= mac_0_p[47 : 16];
+
+                        // Reset input signals to unused modules.
+                        div_dividend[0] <= {32{1'b0}};
+                        div_divisor <= {32{1'b0}};
+                        pre_sub_1_a <= {32{1'b0}};
+                        pre_sub_1_b <= {32{1'b0}};
+                        run_sum[7] <= {64{1'b0}}; // L_44
+                        run_sum[8] <= {64{1'b0}}; // L_54
                     end
-                    if (s_count == SQRT_SAMPLE + DIV_SAMPLE + 2 * PRE_SAMPLE) begin
-                        mac_22_a <= div_1_out;
-                        mac_22_c <= run_sum[9]; // L_55
+
+                    // Extract running sum from MAC units
+                    // ----------------------------------
+                    if (s_count == COL_I_LATENCY) begin
+                        L[479 : 448] <= mac_0_p[47 : 16]; // L_55
                     end
 
                     // Extract elements of the lower Cholesky factor
@@ -565,25 +547,35 @@ module cholesky (
                 S_COL_5: begin
                     if (s_count == COL_N_LATENCY) begin
                         state <= S_IDLE;
-                        s_count <= 8'b0000_0000;
-
-                        clk_en_sqrt <= 1'b0;
-                        sqrt_data <= {32{1'b0}};
                     end else begin
                         state <= S_COL_5;
+                    end
+
+                    // State counter
+                    // -------------
+                    if (s_count == COL_I_LATENCY) begin
+                        s_count <= 8'b0000_0001;
+                    end else begin
                         s_count <= s_count + 8'b0000_0001;
                     end
 
                     // Clock enable signals
                     // --------------------
-                    if (s_count == PRE_SAMPLE + 1) begin
+                    if (s_count == PRE_SAMPLE) begin
                         clk_en_pre_sub <= 4'b0000; // Disable clock to Pre-formatter module dedicated to square root module (MSB).
+                    end else if (s_count == COL_N_LATENCY) begin
+                        clk_en_sqrt <= 1'b0;
                     end
 
                     // Data input signals
                     // --------------------
                     if (s_count == PRE_SAMPLE) begin
                         sqrt_data <= pre_sub_sq_out;
+                    end else if (s_count == COL_N_LATENCY) begin
+                        // Reset input signals to unused modules.
+                        pre_sub_sq_a <= {32{1'b0}};
+                        pre_sub_sq_b <= {32{1'b0}};
+                        run_sum[9] <= {64{1'b0}}; // L_55
                     end
 
                     // Extract elements of the lower Cholesky factor
@@ -730,11 +722,11 @@ module cholesky (
         .CLK      (clk),
         .SCLR     (rst),
         .CE       (clk_en_mac[0]),
-        .A        (mac_22_a),
-        .B        (mac_22_a),
-        .C        (mac_22_c),
+        .A        (mac_0_a),
+        .B        (mac_0_a),
+        .C        (mac_c[0]),
         .SUBTRACT (1'b0), // Add
-        .P        (mac_22_p),
+        .P        (mac_0_p),
         .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
         );
 
@@ -742,11 +734,11 @@ module cholesky (
         .CLK      (clk),
         .SCLR     (rst),
         .CE       (clk_en_mac[1]),
-        .A        (mac_32_a),
-        .B        (mac_32_b),
-        .C        (mac_32_c),
+        .A        (mac_1_a),
+        .B        (mac_1_b),
+        .C        (mac_c[1]),
         .SUBTRACT (1'b0), // Add
-        .P        (mac_32_p),
+        .P        (mac_1_p),
         .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
         );
 
@@ -754,11 +746,11 @@ module cholesky (
         .CLK      (clk),
         .SCLR     (rst),
         .CE       (clk_en_mac[2]),
-        .A        (mac_42_a),
-        .B        (mac_42_b),
-        .C        (mac_42_c),
+        .A        (mac_2_a),
+        .B        (mac_2_b),
+        .C        (mac_c[2]),
         .SUBTRACT (1'b0), // Add
-        .P        (mac_42_p),
+        .P        (mac_2_p),
         .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
         );
 
@@ -766,11 +758,11 @@ module cholesky (
         .CLK      (clk),
         .SCLR     (rst),
         .CE       (clk_en_mac[3]),
-        .A        (mac_52_a),
-        .B        (mac_52_b),
-        .C        (mac_52_c),
+        .A        (mac_3_a),
+        .B        (mac_3_b),
+        .C        (mac_c[3]),
         .SUBTRACT (1'b0), // Add
-        .P        (mac_52_p),
+        .P        (mac_3_p),
         .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
         );
 
