@@ -54,12 +54,9 @@ module cholesky (
 
     wire          sqrt_data_valid, div_divisor_valid;
     wire  [3 : 0] div_dividend_valid;
-    wire [23 : 0] sqrt_out_t;
-    wire [31 : 0] div_1_sub_out, div_2_sub_out, div_3_sub_out, div_4_sub_out,
-                  div_1_out, div_2_out, div_3_out, div_4_out,
+    wire [31 : 0] div_0_out, div_1_out, div_2_out, div_3_out,
                   sqrt_out,
                   pre_sub_1_out, pre_sub_2_out, pre_sub_3_out, pre_sub_sq_out;
-    wire [55 : 0] div_1_out_t, div_2_out_t, div_3_out_t, div_4_out_t;
     wire [63 : 0] mac_0_p, mac_1_p, mac_2_p, mac_3_p;
     reg           clk_en_sqrt, sqrt_data_valid_d1, sqrt_data_valid_d2, count_en;
     reg   [3 : 0] clk_en_div, clk_en_mac, clk_en_pre_sub, div_dividend_valid_d1, div_dividend_valid_d2;
@@ -67,7 +64,7 @@ module cholesky (
     reg  [31 : 0] pre_sub_1_a, pre_sub_1_b, pre_sub_2_a, pre_sub_2_b, pre_sub_3_a, pre_sub_3_b, pre_sub_sq_a, pre_sub_sq_b,
                   sqrt_data,
                   div_divisor, div_dividend [3 : 0],
-                  mac_0_a, mac_1_a, mac_1_b, mac_2_a, mac_2_b, mac_3_a, mac_3_b;
+                  mac_0_a, mac_0_b, mac_1_a, mac_1_b, mac_2_a, mac_2_b, mac_3_a, mac_3_b;
     reg  [63 : 0] mac_c [3 : 0];
     reg  [63 : 0] run_sum [9 : 0];
 
@@ -98,6 +95,7 @@ module cholesky (
             div_dividend[2] <= {32{1'b0}};
             div_dividend[3] <= {32{1'b0}};
             mac_0_a <= {32{1'b0}};
+            mac_0_b <= {32{1'b0}};
             mac_c[0] <= {64{1'b0}};
             mac_1_a <= {32{1'b0}};
             mac_1_b <= {32{1'b0}};
@@ -143,6 +141,7 @@ module cholesky (
                     if (A_valid) begin
                         sqrt_data <= A_11;
                         mac_0_a <= {32{1'b0}};
+                        mac_0_b <= {32{1'b0}};
                         mac_c[0] <= {64{1'b0}};
                         mac_1_a <= {32{1'b0}};
                         mac_1_b <= {32{1'b0}};
@@ -199,13 +198,14 @@ module cholesky (
                         div_dividend[2] <= A_41;
                         div_dividend[3] <= A_51;
                     end else if (s_count == SQRT_SAMPLE + DIV_SAMPLE) begin
-                        mac_0_a <= div_1_out;
-                        mac_1_a <= div_1_out;
-                        mac_1_b <= div_2_out;
-                        mac_2_a <= div_1_out;
-                        mac_2_b <= div_3_out;
-                        mac_3_a <= div_1_out;
-                        mac_3_b <= div_4_out;
+                        mac_0_a <= div_0_out;
+                        mac_0_b <= div_0_out;
+                        mac_1_a <= div_0_out;
+                        mac_1_b <= div_1_out;
+                        mac_2_a <= div_0_out;
+                        mac_2_b <= div_2_out;
+                        mac_3_a <= div_0_out;
+                        mac_3_b <= div_3_out;
                     end else if (s_count == COL_1_LATENCY) begin
                         pre_sub_sq_a <= A_22;
                         pre_sub_sq_b <= mac_0_p[47 : 16];
@@ -227,10 +227,10 @@ module cholesky (
                     // ---------------------------------------------
                     if (s_count == COL_1_LATENCY) begin
                         L[31 : 0]    <= sqrt_out;  // L_11
-                        L[63 : 32]   <= div_1_out; // L_21
-                        L[127 : 96]  <= div_2_out; // L_31
-                        L[223 : 192] <= div_3_out; // L_41
-                        L[351 : 320] <= div_4_out; // L_51
+                        L[63 : 32]   <= div_0_out; // L_21
+                        L[127 : 96]  <= div_1_out; // L_31
+                        L[223 : 192] <= div_2_out; // L_41
+                        L[351 : 320] <= div_3_out; // L_51
                     end
                 end
                 S_COL_2: begin
@@ -277,21 +277,21 @@ module cholesky (
                     // "Lazy forward accumulations"
                     // ----------------------------
                     if (s_count == 1) begin
+                        mac_0_a <= div_1_out;
+                        mac_1_a <= div_1_out;
+                        mac_1_b <= div_2_out;
+                        mac_2_a <= div_1_out;
+                        mac_2_b <= div_3_out;
+                    end else if (s_count == 1 + MAC_SAMPLE) begin
                         mac_0_a <= div_2_out;
                         mac_1_a <= div_2_out;
                         mac_1_b <= div_3_out;
-                        mac_2_a <= div_2_out;
-                        mac_2_b <= div_4_out;
-                    end else if (s_count == 1 + MAC_SAMPLE) begin
-                        mac_0_a <= div_3_out;
-                        mac_1_a <= div_3_out;
-                        mac_1_b <= div_4_out;
 
                         run_sum[4] <= mac_0_p; // L_33
                         run_sum[5] <= mac_1_p; // L_43
                         run_sum[6] <= mac_2_p; // L_53
                     end else if (s_count == 1 + 2 * MAC_SAMPLE) begin
-                        mac_0_a <= div_4_out;
+                        mac_0_a <= div_3_out;
 
                         run_sum[7] <= mac_0_p; // L_44
                         run_sum[8] <= mac_1_p; // L_54
@@ -316,13 +316,13 @@ module cholesky (
                         div_dividend[1] <= pre_sub_2_out;
                         div_dividend[2] <= pre_sub_3_out;
                     end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE + DIV_SAMPLE) begin
-                        mac_0_a <= div_1_out;
+                        mac_0_a <= div_0_out;
                         mac_c[0] <= run_sum[4]; // L_33
-                        mac_1_a <= div_1_out;
-                        mac_1_b <= div_2_out;
+                        mac_1_a <= div_0_out;
+                        mac_1_b <= div_1_out;
                         mac_c[1] <= run_sum[5]; // L_43
-                        mac_2_a <= div_1_out;
-                        mac_2_b <= div_3_out;
+                        mac_2_a <= div_0_out;
+                        mac_2_b <= div_2_out;
                         mac_c[2] <= run_sum[6]; // L_53
                     end else if (s_count == COL_I_LATENCY) begin // Set up inputs for first operation of next state.
                         pre_sub_sq_a <= A_33;
@@ -350,9 +350,9 @@ module cholesky (
                     // ---------------------------------------------
                     if (s_count == COL_I_LATENCY) begin
                         L[95 : 64]   <= sqrt_out;  // L_22
-                        L[159 : 128] <= div_1_out; // L_32
-                        L[255 : 224] <= div_2_out; // L_42
-                        L[383 : 352] <= div_3_out; // L_52
+                        L[159 : 128] <= div_0_out; // L_32
+                        L[255 : 224] <= div_1_out; // L_42
+                        L[383 : 352] <= div_2_out; // L_52
                     end
                 end
                 S_COL_3: begin
@@ -397,13 +397,13 @@ module cholesky (
                     // "Lazy forward accumulations"
                     // ----------------------------
                     if (s_count == 1) begin
-                        mac_0_a <= div_2_out;
+                        mac_0_a <= div_1_out;
                         mac_c[0] <= run_sum[7]; // L_44
-                        mac_1_a <= div_2_out;
-                        mac_1_b <= div_3_out;
+                        mac_1_a <= div_1_out;
+                        mac_1_b <= div_2_out;
                         mac_c[1] <= run_sum[8]; // L_54
                     end else if (s_count == 1 + MAC_SAMPLE) begin
-                        mac_0_a <= div_3_out;
+                        mac_0_a <= div_2_out;
                         mac_c[0] <= run_sum[9]; // L_55
 
                         run_sum[7] <= mac_0_p; // L_44
@@ -426,10 +426,10 @@ module cholesky (
                         div_dividend[0] <= pre_sub_1_out;
                         div_dividend[1] <= pre_sub_2_out;
                     end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE + DIV_SAMPLE) begin
-                        mac_0_a <= div_1_out;
+                        mac_0_a <= div_0_out;
                         mac_c[0] <= run_sum[7]; // L_44
-                        mac_1_a <= div_1_out;
-                        mac_1_b <= div_2_out;
+                        mac_1_a <= div_0_out;
+                        mac_1_b <= div_1_out;
                         mac_c[1] <= run_sum[8]; // L_54
                     end else if (s_count == COL_I_LATENCY) begin // Set up inputs for first operation of next state.
                         pre_sub_sq_a <= A_44;
@@ -455,8 +455,8 @@ module cholesky (
                     // ---------------------------------------------
                     if (s_count == COL_I_LATENCY) begin
                         L[191 : 160] <= sqrt_out;  // L_33
-                        L[287 : 256] <= div_1_out; // L_43
-                        L[415 : 384] <= div_2_out; // L_53
+                        L[287 : 256] <= div_0_out; // L_43
+                        L[415 : 384] <= div_1_out; // L_53
                     end
                 end
                 S_COL_4: begin
@@ -501,7 +501,7 @@ module cholesky (
                     if (s_count == 1 + MAC_SAMPLE) begin
                         run_sum[9] <= mac_0_p; // L_55
                     end else if (s_count == 1) begin
-                        mac_0_a <= div_2_out;
+                        mac_0_a <= div_1_out;
                         mac_c[0] <= run_sum[9]; // L_55
                     end
 
@@ -516,7 +516,7 @@ module cholesky (
                         div_divisor <= sqrt_out;
                         div_dividend[0] <= pre_sub_1_out;
                     end else if (s_count == PRE_SAMPLE + SQRT_SAMPLE + PRE_SAMPLE + DIV_SAMPLE) begin
-                        mac_0_a <= div_1_out;
+                        mac_0_a <= div_0_out;
                         mac_c[0] <= run_sum[9]; // L_55
                     end else if (s_count == COL_I_LATENCY) begin // Set up inputs for first operation of next state.
                         pre_sub_sq_a <= A_55;
@@ -541,7 +541,7 @@ module cholesky (
                     // ---------------------------------------------
                     if (s_count == COL_I_LATENCY) begin
                         L[319 : 288] <= sqrt_out;  // L_44
-                        L[447 : 416] <= div_1_out; // L_54
+                        L[447 : 416] <= div_0_out; // L_54
                     end
                 end
                 S_COL_5: begin
@@ -610,16 +610,14 @@ module cholesky (
      * Latency is SQRT_SAMPLE
      */
 
-    cholesky_ip_sqrt sqrt_1 (
-        .aclk                    (clk),
-        .aclken                  (clk_en_sqrt),
-        .aresetn                 (~rst),
-        .s_axis_cartesian_tvalid (sqrt_data_valid),
-        .s_axis_cartesian_tdata  (sqrt_data),
-        .m_axis_dout_tvalid      (), // Not connected, since latency is known beforehand, we know when to sample
-        .m_axis_dout_tdata       (sqrt_out_t)
-        );
-    assign sqrt_out = { {8{1'b0}}, sqrt_out_t };
+    chol_sqrt sqrt_0 (
+        .clk        (clk),
+        .clken      (clk_en_sqrt),
+        .rst        (rst),
+        .data_valid (sqrt_data_valid),
+        .data       (sqrt_data),
+        .out        (sqrt_out)
+    );
 
 // ================================================================================
     /* N - 1 Divider modules
@@ -633,84 +631,49 @@ module cholesky (
      * All division operations for a particular column j have as divisor L_jj
      */
 
-    cholesky_ip_div div_1 (
-        .aclk                   (clk),
-        .aclken                 (clk_en_div[0]),
-        .aresetn                (~rst),
-        .s_axis_divisor_tvalid  (div_divisor_valid),
-        .s_axis_divisor_tdata   (div_divisor),
-        .s_axis_dividend_tvalid (div_dividend_valid[0]),
-        .s_axis_dividend_tdata  (div_dividend[0]),
-        .m_axis_dout_tvalid     (), // Not connected, since latency is known beforehand, we know when to sample
-        .m_axis_dout_tdata      (div_1_out_t)
-        );
-    cholesky_ip_sub_const div_sub_1 (
-        .A   (div_1_out_t[48 : 17]),
-        .CLK (clk),
-        .CE  (clk_en_div[0]),
-        .S   (div_1_sub_out)
-        );
-    assign div_1_out = (div_1_out_t[16]) ? {div_1_sub_out[15 : 0], div_1_out_t[15 : 0]} : {div_1_out_t[32 : 17], div_1_out_t[15 : 0]};
+    chol_div div_0 (
+        .clk            (clk),
+        .clken          (clk_en_div[0]),
+        .rst            (rst),
+        .divisor_valid  (div_divisor_valid),
+        .divisor        (div_divisor),
+        .dividend_valid (div_dividend_valid[0]),
+        .dividend       (div_dividend[0]),
+        .out            (div_0_out)
+    );
 
-// --------------------------------------------------------------------------------
-    cholesky_ip_div div_2 (
-        .aclk                   (clk),
-        .aclken                 (clk_en_div[1]),
-        .aresetn                (~rst),
-        .s_axis_divisor_tvalid  (div_divisor_valid),
-        .s_axis_divisor_tdata   (div_divisor),
-        .s_axis_dividend_tvalid (div_dividend_valid[1]),
-        .s_axis_dividend_tdata  (div_dividend[1]),
-        .m_axis_dout_tvalid     (), // Not connected, since latency is known beforehand, we know when to sample
-        .m_axis_dout_tdata      (div_2_out_t)
-        );
-    cholesky_ip_sub_const div_sub_2 (
-        .A   (div_2_out_t[48 : 17]),
-        .CLK (clk),
-        .CE  (clk_en_div[1]),
-        .S   (div_2_sub_out)
-        );
-    assign div_2_out = (div_2_out_t[16]) ? {div_2_sub_out[15 : 0], div_2_out_t[15 : 0]} : {div_2_out_t[32 : 17], div_2_out_t[15 : 0]};
+    chol_div div_1 (
+        .clk            (clk),
+        .clken          (clk_en_div[1]),
+        .rst            (rst),
+        .divisor_valid  (div_divisor_valid),
+        .divisor        (div_divisor),
+        .dividend_valid (div_dividend_valid[1]),
+        .dividend       (div_dividend[1]),
+        .out            (div_1_out)
+    );
 
-// --------------------------------------------------------------------------------
-    cholesky_ip_div div_3 (
-        .aclk                   (clk),
-        .aclken                 (clk_en_div[2]),
-        .aresetn                (~rst),
-        .s_axis_divisor_tvalid  (div_divisor_valid),
-        .s_axis_divisor_tdata   (div_divisor),
-        .s_axis_dividend_tvalid (div_dividend_valid[2]),
-        .s_axis_dividend_tdata  (div_dividend[2]),
-        .m_axis_dout_tvalid     (), // Not connected, since latency is known beforehand, we know when to sample
-        .m_axis_dout_tdata      (div_3_out_t)
-        );
-    cholesky_ip_sub_const div_sub_3 (
-        .A   (div_3_out_t[48 : 17]),
-        .CLK (clk),
-        .CE  (clk_en_div[2]),
-        .S   (div_3_sub_out)
-        );
-    assign div_3_out = (div_3_out_t[16]) ? {div_3_sub_out[15 : 0], div_3_out_t[15 : 0]} : {div_3_out_t[32 : 17], div_3_out_t[15 : 0]};
+    chol_div div_2 (
+        .clk            (clk),
+        .clken          (clk_en_div[2]),
+        .rst            (rst),
+        .divisor_valid  (div_divisor_valid),
+        .divisor        (div_divisor),
+        .dividend_valid (div_dividend_valid[2]),
+        .dividend       (div_dividend[2]),
+        .out            (div_2_out)
+    );
 
-// --------------------------------------------------------------------------------
-    cholesky_ip_div div_4 (
-        .aclk                   (clk),
-        .aclken                 (clk_en_div[3]),
-        .aresetn                (~rst),
-        .s_axis_divisor_tvalid  (div_divisor_valid),
-        .s_axis_divisor_tdata   (div_divisor),
-        .s_axis_dividend_tvalid (div_dividend_valid[3]),
-        .s_axis_dividend_tdata  (div_dividend[3]),
-        .m_axis_dout_tvalid     (),  // Not connected, since latency is known beforehand, we know when to sample
-        .m_axis_dout_tdata      (div_4_out_t)
-        );
-    cholesky_ip_sub_const div_sub_4 (
-        .A   (div_4_out_t[48 : 17]),
-        .CLK (clk),
-        .CE  (clk_en_div[3]),
-        .S   (div_4_sub_out)
-        );
-    assign div_4_out = (div_4_out_t[16]) ? {div_4_sub_out[15 : 0], div_4_out_t[15 : 0]} : {div_4_out_t[32 : 17], div_4_out_t[15 : 0]};
+    chol_div div_3 (
+        .clk            (clk),
+        .clken          (clk_en_div[3]),
+        .rst            (rst),
+        .divisor_valid  (div_divisor_valid),
+        .divisor        (div_divisor),
+        .dividend_valid (div_dividend_valid[3]),
+        .dividend       (div_dividend[3]),
+        .out            (div_3_out)
+    );
 
 // ================================================================================
     /* N - 1 Multiply-ACcumulate (MAC) modules
@@ -718,53 +681,45 @@ module cholesky (
      * Latency is MAC_SAMPLE
      */
 
-    pe_matrix_ip_mac mac_0 (
-        .CLK      (clk),
-        .SCLR     (rst),
-        .CE       (clk_en_mac[0]),
-        .A        (mac_0_a),
-        .B        (mac_0_a),
-        .C        (mac_c[0]),
-        .SUBTRACT (1'b0), // Add
-        .P        (mac_0_p),
-        .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
-        );
+    chol_mac mac_0 (
+        .clk   (clk),
+        .clken (clk_en_mac[0]),
+        .rst   (rst),
+        .a     (mac_0_a),
+        .b     (mac_0_a),
+        .c     (mac_c[0]),
+        .out   (mac_0_p)
+    );
 
-    pe_matrix_ip_mac mac_1 (
-        .CLK      (clk),
-        .SCLR     (rst),
-        .CE       (clk_en_mac[1]),
-        .A        (mac_1_a),
-        .B        (mac_1_b),
-        .C        (mac_c[1]),
-        .SUBTRACT (1'b0), // Add
-        .P        (mac_1_p),
-        .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
-        );
+    chol_mac mac_1 (
+        .clk   (clk),
+        .clken (clk_en_mac[1]),
+        .rst   (rst),
+        .a     (mac_1_a),
+        .b     (mac_1_b),
+        .c     (mac_c[1]),
+        .out   (mac_1_p)
+    );
 
-    pe_matrix_ip_mac mac_2 (
-        .CLK      (clk),
-        .SCLR     (rst),
-        .CE       (clk_en_mac[2]),
-        .A        (mac_2_a),
-        .B        (mac_2_b),
-        .C        (mac_c[2]),
-        .SUBTRACT (1'b0), // Add
-        .P        (mac_2_p),
-        .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
-        );
+    chol_mac mac_2 (
+        .clk   (clk),
+        .clken (clk_en_mac[2]),
+        .rst   (rst),
+        .a     (mac_2_a),
+        .b     (mac_2_b),
+        .c     (mac_c[2]),
+        .out   (mac_2_p)
+    );
 
-    pe_matrix_ip_mac mac_3 (
-        .CLK      (clk),
-        .SCLR     (rst),
-        .CE       (clk_en_mac[3]),
-        .A        (mac_3_a),
-        .B        (mac_3_b),
-        .C        (mac_c[3]),
-        .SUBTRACT (1'b0), // Add
-        .P        (mac_3_p),
-        .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
-        );
+    chol_mac mac_3 (
+        .clk   (clk),
+        .clken (clk_en_mac[3]),
+        .rst   (rst),
+        .a     (mac_3_a),
+        .b     (mac_3_b),
+        .c     (mac_c[3]),
+        .out   (mac_3_p)
+    );
 
 // ================================================================================
     /* (N - 1) Subtractor modules to "pre-format"
