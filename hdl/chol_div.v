@@ -15,7 +15,7 @@ module chol_div (
     wire [31 : 0] out_tt;
     wire [55 : 0] out_t;
 
-    cholesky_ip_div div_4 (
+    cholesky_ip_div div_0 (
         .aclk                   (clk),
         .aclken                 (clken),
         .aresetn                (~rst),
@@ -26,12 +26,13 @@ module chol_div (
         .m_axis_dout_tvalid     (),  // Not connected, since latency is known beforehand, we know when to sample
         .m_axis_dout_tdata      (out_t)
     );
-    cholesky_ip_sub_const div_sub_4 (
+    cholesky_ip_sub_const div_sub_0 (
         .A   (out_t[48 : 17]),
         .CLK (clk),
         .CE  (clken),
         .S   (out_tt)
     );
+
     assign out = (out_t[16]) ? {out_tt[15 : 0], out_t[15 : 0]} : {out_t[32 : 17], out_t[15 : 0]};
 
 endmodule

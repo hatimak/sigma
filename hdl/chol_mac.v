@@ -17,7 +17,7 @@ module chol_mac (
         .A        (a),
         .B        (b),
         .C        (c),
-        .SUBTRACT (1'b0), // Add
+        .SUBTRACT (1'b1), // Subtract, i.e., P = C - A * B (refer Xilinx LogiCORE datasheet)
         .P        (out),
         .PCOUT    () // Not connected since pe_matrix_ip_mac spans multiple DSP slices
     );

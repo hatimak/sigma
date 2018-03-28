@@ -11,7 +11,7 @@ module chol_sqrt (
 
     wire [23 : 0] out_t;
 
-    cholesky_ip_sqrt sqrt_1 (
+    cholesky_ip_sqrt sqrt_0 (
         .aclk                    (clk),
         .aclken                  (clken),
         .aresetn                 (~rst),
