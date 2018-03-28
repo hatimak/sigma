@@ -151,12 +151,12 @@ module cholesky (
 
                     // Clock enable signals
                     // --------------------
-                    if (s_count == SQRT_SAMPLE - 1) begin
+                    if (s_count == SQRT_SAMPLE) begin
                         clk_en_div[0] <= 1'b1;
                         clk_en_div[1] <= 1'b1;
                         clk_en_div[2] <= 1'b1;
                         clk_en_div[3] <= 1'b1;
-                    end else if (s_count == SQRT_SAMPLE) begin
+
                         clk_en_sqrt <= 1'b0;
                     end else if (s_count == SQRT_SAMPLE + DIV_SAMPLE) begin
                         clk_en_div[0] <= 1'b0;
@@ -239,11 +239,11 @@ module cholesky (
                         clk_en_mac[2] <= 1'b0;
                     end else if (s_count == 1 + 3 * MAC_SAMPLE) begin
                         clk_en_mac[1] <= 1'b0;
-                    end else if (s_count == SQRT_SAMPLE - 1) begin
+                    end else if (s_count == SQRT_SAMPLE) begin
                         clk_en_div[1] <= 1'b1;
                         clk_en_div[2] <= 1'b1;
                         clk_en_div[3] <= 1'b1;
-                    end else if (s_count == SQRT_SAMPLE) begin
+
                         clk_en_sqrt <= 1'b0;
                     end else if (s_count == SQRT_SAMPLE + DIV_SAMPLE) begin
                         clk_en_div[1] <= 1'b0;
@@ -357,10 +357,10 @@ module cholesky (
                         clk_en_mac[3] <= 1'b0;
                     end else if (s_count == 1 + 2 * MAC_SAMPLE) begin
                         clk_en_mac[2] <= 1'b0;
-                    end else if (s_count == SQRT_SAMPLE - 1) begin
+                    end else if (s_count == SQRT_SAMPLE) begin
                         clk_en_div[2] <= 1'b1;
                         clk_en_div[3] <= 1'b1;
-                    end else if (s_count == SQRT_SAMPLE) begin
+
                         clk_en_sqrt <= 1'b0;
                     end else if (s_count == SQRT_SAMPLE + DIV_SAMPLE) begin
                         clk_en_div[2] <= 1'b0;
@@ -449,9 +449,9 @@ module cholesky (
                     // --------------------
                     if (s_count == 1 + MAC_SAMPLE) begin
                         clk_en_mac[3] <= 1'b0;
-                    end else if (s_count == SQRT_SAMPLE - 1) begin
-                        clk_en_div[3] <= 1'b1;
                     end else if (s_count == SQRT_SAMPLE) begin
+                        clk_en_div[3] <= 1'b1;
+
                         clk_en_sqrt <= 1'b0;
                     end else if (s_count == SQRT_SAMPLE + DIV_SAMPLE) begin
                         clk_en_div[3] <= 1'b0;
