@@ -24,6 +24,9 @@ add_files -norecurse $hdlRoot/pe_time_proc.v
 add_files -norecurse $hdlRoot/pe_meas_proc.v
 add_files -norecurse $hdlRoot/pe_matrix_expectation_comb.v
 add_files -norecurse $hdlRoot/cholesky.v
+add_files -norecurse $hdlRoot/chol_div.v
+add_files -norecurse $hdlRoot/chol_mac.v
+add_files -norecurse $hdlRoot/chol_sqrt.v
 add_files -norecurse $hdlRoot/vector_scale_add.v
 
 add_files -norecurse $ipRoot/pe_time_ip_add.xcix
@@ -41,7 +44,6 @@ add_files -norecurse $ipRoot/pe_meas_ip_square.xcix
 add_files -norecurse $ipRoot/pe_matrix_ip_mac.xcix
 add_files -norecurse $ipRoot/cholesky_ip_sqrt.xcix
 add_files -norecurse $ipRoot/cholesky_ip_div.xcix
-add_files -norecurse $ipRoot/cholesky_ip_sub.xcix
 add_files -norecurse $ipRoot/cholesky_ip_sub_const.xcix
 add_files -norecurse $ipRoot/vsad_ip_mac.xcix
 
@@ -54,6 +56,9 @@ add_files -fileset sim_1 -norecurse $tbRoot/tb_matrix_expectation_comb.v
 add_files -fileset sim_1 -norecurse $tbRoot/tb_cholesky.v
 add_files -fileset sim_1 -norecurse $tbRoot/tb_vsad.v 
 
+set_property top tb_cholesky [get_filesets sim_1]
+set_property top_lib xil_defaultlib [get_filesets sim_1]
+
 update_compile_order -fileset sim_1
 
 add_files -fileset constrs_1 -norecurse $xdcRoot/zc702.xdc
@@ -63,4 +68,3 @@ set_property STEPS.SYNTH_DESIGN.ARGS.FLATTEN_HIERARCHY none [get_runs synth_1]
 
 # If successful, "touch" a file so the make utility will know it's done 
 touch {./vivado/.setup_vivado.done}
-

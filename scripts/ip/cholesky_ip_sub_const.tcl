@@ -16,10 +16,10 @@ set_property -dict [list \
         CONFIG.A_Width {32} \
         CONFIG.B_Width {1} \
         CONFIG.Add_Mode {Subtract} \
-        CONFIG.Latency {1} \
+        CONFIG.Latency_Configuration {Automatic} \
+        CONFIG.Latency {2} \
         CONFIG.B_Constant {true} \
         CONFIG.B_Value {1} \
-        CONFIG.CE {false} \
         CONFIG.Out_Width {32} \
 	CONFIG.CE {true} \
 ] [get_ips cholesky_ip_sub_const]
@@ -30,10 +30,9 @@ export_ip_user_files -of_objects [get_files cholesky_ip_sub_const.xci] -no_scrip
 
 create_ip_run [get_files -of_objects [get_fileset sources_1] [get_files */cholesky_ip_sub_const.xci]]
 
-launch_runs -jobs 4 cholesky_ip_sub_const_synth_1
+launch_runs -jobs 8 cholesky_ip_sub_const_synth_1
 wait_on_run cholesky_ip_sub_const_synth_1
 
 export_simulation -of_objects [get_files cholesky_ip_sub_const.xci] -directory ./vivado/ip_user_files/sim_scripts -ip_user_files_dir ./vivado/ip_user_files -ipstatic_source_dir ./vivado/ip_user_files/ipstatic -use_ip_compiled_libs -force -quiet
 
 close_project
-

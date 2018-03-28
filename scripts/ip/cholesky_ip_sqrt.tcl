@@ -29,7 +29,7 @@ export_ip_user_files -of_objects [get_files cholesky_ip_sqrt.xci] -no_script -ip
 
 create_ip_run [get_files -of_objects [get_fileset sources_1] [get_files */cholesky_ip_sqrt.xci]]
 
-launch_runs -jobs 4 cholesky_ip_sqrt_synth_1
+launch_runs -jobs 8 cholesky_ip_sqrt_synth_1
 wait_on_run cholesky_ip_sqrt_synth_1
 
 export_simulation -of_objects [get_files cholesky_ip_sqrt.xci] -directory ./vivado/ip_user_files/sim_scripts -ip_user_files_dir ./vivado/ip_user_files -ipstatic_source_dir ./vivado/ip_user_files/ipstatic -use_ip_compiled_libs -force -quiet
