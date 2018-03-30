@@ -27,6 +27,7 @@ add_files -norecurse $hdlRoot/cholesky.v
 add_files -norecurse $hdlRoot/chol_div.v
 add_files -norecurse $hdlRoot/chol_mac.v
 add_files -norecurse $hdlRoot/chol_sqrt.v
+add_files -norecurse $hdlRoot/chol_inv_sqrt.v
 add_files -norecurse $hdlRoot/vector_scale_add.v
 
 add_files -norecurse $ipRoot/pe_time_ip_add.xcix
@@ -45,6 +46,11 @@ add_files -norecurse $ipRoot/pe_matrix_ip_mac.xcix
 add_files -norecurse $ipRoot/cholesky_ip_sqrt.xcix
 add_files -norecurse $ipRoot/cholesky_ip_div.xcix
 add_files -norecurse $ipRoot/cholesky_ip_sub_const.xcix
+add_files -norecurse $ipRoot/cholesky_ip_sub.xcix
+add_files -norecurse $ipRoot/cholesky_ip_mult.xcix
+add_files -norecurse $ipRoot/cholesky_ip_fixed_to_float.xcix
+add_files -norecurse $ipRoot/cholesky_ip_float_to_fixed.xcix
+
 add_files -norecurse $ipRoot/vsad_ip_mac.xcix
 
 update_compile_order -fileset sources_1
@@ -54,14 +60,20 @@ add_files -fileset sim_1 -norecurse $tbRoot/tb_pe_time_proc.v
 add_files -fileset sim_1 -norecurse $tbRoot/tb_pe_meas_proc.v
 add_files -fileset sim_1 -norecurse $tbRoot/tb_matrix_expectation_comb.v
 add_files -fileset sim_1 -norecurse $tbRoot/tb_cholesky.v
-add_files -fileset sim_1 -norecurse $tbRoot/tb_vsad.v 
+add_files -fileset sim_1 -norecurse $tbRoot/tb_vsad.v
+add_files -fileset sim_1 -norecurse $tbRoot/tb_inv_sqrt.v
+
+add_files -fileset constrs_1 -norecurse $xdcRoot/zc702.xdc
 
 set_property top tb_cholesky [get_filesets sim_1]
 set_property top_lib xil_defaultlib [get_filesets sim_1]
-
 update_compile_order -fileset sim_1
 
-add_files -fileset constrs_1 -norecurse $xdcRoot/zc702.xdc
+create_fileset -simset sim_2
+set_property SOURCE_SET sources_1 [get_filesets sim_2]
+set_property top tb_inv_sqrt [get_filesets sim_2]
+set_property top_lib xil_defaultlib [get_filesets sim_2]
+update_compile_order -fileset sim_2
 
 set_property STEPS.WRITE_BITSTREAM.ARGS.BIN_FILE true [get_runs impl_1]
 set_property STEPS.SYNTH_DESIGN.ARGS.FLATTEN_HIERARCHY none [get_runs synth_1]

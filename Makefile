@@ -1,6 +1,6 @@
-RTL=./hdl/pe_time_proc.v ./hdl/pe_meas_proc.v ./hdl/pe_matrix_expectation_comb.v ./hdl/cholesky.v ./hdl/chol_div.v ./hdl/chol_sqrt.v ./hdl/chol_mac.v ./hdl/vector_scale_add.v
+RTL=./hdl/pe_time_proc.v ./hdl/pe_meas_proc.v ./hdl/pe_matrix_expectation_comb.v ./hdl/cholesky.v ./hdl/chol_div.v ./hdl/chol_sqrt.v ./hdl/chol_mac.v ./hdl/vector_scale_add.v ./hdl/chol_inv_sqrt.v
 
-IP=./ip/vsad_ip_mac.xcix ./ip/cholesky_ip_div.xcix ./ip/cholesky_ip_sqrt.xcix ./ip/cholesky_ip_sub_const.xcix ./ip/pe_matrix_ip_mac.xcix ./ip/pe_meas_ip_add_long.xcix ./ip/pe_meas_ip_arctan.xcix ./ip/pe_meas_ip_shift_ram.xcix ./ip/pe_meas_ip_shift_valid.xcix ./ip/pe_meas_ip_sqrt.xcix ./ip/pe_meas_ip_square.xcix ./ip/pe_time_ip_add.xcix ./ip/pe_time_ip_div.xcix ./ip/pe_time_ip_mult_dsp.xcix ./ip/pe_time_ip_sub.xcix ./ip/pe_time_ip_sub_const.xcix ./ip/pe_time_ip_trig.xcix
+IP=./ip/vsad_ip_mac.xcix ./ip/cholesky_ip_div.xcix ./ip/cholesky_ip_sqrt.xcix ./ip/cholesky_ip_sub_const.xcix ./ip/cholesky_ip_sub.xcix ./ip/cholesky_ip_mult.xcix ./ip/cholesky_ip_float_to_fixed.xcix ./ip/cholesky_ip_fixed_to_float.xcix ./ip/pe_matrix_ip_mac.xcix ./ip/pe_meas_ip_add_long.xcix ./ip/pe_meas_ip_arctan.xcix ./ip/pe_meas_ip_shift_ram.xcix ./ip/pe_meas_ip_shift_valid.xcix ./ip/pe_meas_ip_sqrt.xcix ./ip/pe_meas_ip_square.xcix ./ip/pe_time_ip_add.xcix ./ip/pe_time_ip_div.xcix ./ip/pe_time_ip_mult_dsp.xcix ./ip/pe_time_ip_sub.xcix ./ip/pe_time_ip_sub_const.xcix ./ip/pe_time_ip_trig.xcix
 
 vivado: ip_vivado setup_vivado
 
