@@ -1,6 +1,8 @@
 `timescale 1ns / 1ps
 
-module chol_inv_sqrt (
+module chol_inv_sqrt #(
+    parameter ITER = 1
+    ) (
     input wire        clk,
     input wire        clken,
     input wire        rst,
@@ -31,7 +33,7 @@ module chol_inv_sqrt (
     reg           clken_fixed_to_float, valid_fixed_to_float_d1, valid_fixed_to_float_d2, clken_sub, 
                   clken_float_to_fixed, valid_float_to_fixed_d1, valid_float_to_fixed_d2,
                   clken_mult_0, clken_mult_1, clken_mult_2;
-    reg   [3 : 0] s_count;
+    reg   [3 : 0] s_count, s_iter;
     reg   [6 : 0] state;
     reg  [31 : 0] a_sub, b_sub, a_mult_1, b_mult_1;
 
@@ -39,6 +41,7 @@ module chol_inv_sqrt (
         if (rst) begin
             state <= S_IDLE;
             s_count <= 4'b0000;
+            s_iter <= 4'b0000;
 
             clken_fixed_to_float <= 1'b0;
             clken_sub <= 1'b0;
@@ -72,6 +75,7 @@ module chol_inv_sqrt (
 
                     if (data_valid) begin
                         out_valid <= 1'b0;
+                        s_iter <= 0;
                         // Setup signals to fixed-to-float module
                         clken_fixed_to_float <= 1'b1;
                     end
@@ -125,7 +129,8 @@ module chol_inv_sqrt (
     
                     if (float_to_fixed_valid) begin
                         clken_float_to_fixed <= 1'b0;
-    
+                        out <= out_float_to_fixed;
+
                         // Setup signals to multiplier modules
                         clken_mult_0 <= 1'b1;
                         clken_mult_1 <= 1'b1;
@@ -185,7 +190,11 @@ module chol_inv_sqrt (
                 S_SUB: begin
                     // Determine next state
                     if (s_count == SUB_LATENCY) begin
-                        state <= S_IDLE;
+                        if (s_iter == ITER - 1) begin
+                            state <= S_IDLE;
+                        end else begin
+                            state <= S_MUL_1;
+                        end
                     end else begin
                         state <= S_SUB;
                     end
@@ -200,9 +209,19 @@ module chol_inv_sqrt (
                     if (s_count == SUB_LATENCY) begin
                         clken_sub <= 1'b0;
 
-                        // Computation done, extract result and raise valid
-                        out <= out_sub;
-                        out_valid <= 1'b1;
+                        if (s_iter == ITER - 1) begin
+                            // Computation done, extract result and raise valid
+                            out <= out_sub;
+                            out_valid <= 1'b1;
+                        end else begin
+                            s_iter <= s_iter + 1;
+                            // Setup signals to multiplier modules
+                            clken_mult_0 <= 1'b1;
+                            clken_mult_1 <= 1'b1;
+                            a_mult_1 <= out_sub;
+                            b_mult_1 <= {1'b0, data[31 : 1]};
+                            clken_mult_2 <= 1'b1;
+                        end
                     end
                 end
             endcase
@@ -250,8 +269,8 @@ module chol_inv_sqrt (
 
     cholesky_ip_mult mult_0 (
         .CLK (clk),
-        .A   (out_float_to_fixed),
-        .B   (out_float_to_fixed),
+        .A   (out),
+        .B   (out),
         .CE  (clken_mult_0),
         .P   (out_mult_0)
     );
@@ -266,7 +285,7 @@ module chol_inv_sqrt (
 
     cholesky_ip_mult mult_2 (
         .CLK (clk),
-        .A   (out_float_to_fixed),
+        .A   (out),
         .B   (THREE_HALFS),
         .CE  (clken_mult_2),
         .P   (out_mult_2)
