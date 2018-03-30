@@ -53,8 +53,8 @@ module cholesky (
     wire          div_dividend_valid [3 : 0];
     wire [31 : 0] div_out [3 : 0], sqrt_out;
     wire [63 : 0] mac_p [3 : 0];
-    reg           clk_en_sqrt, sqrt_data_valid_d1, sqrt_data_valid_d2, count_en;
-    reg           clk_en_div [3 : 0], clk_en_mac [3 : 0], div_dividend_valid_d1 [3 : 0], div_dividend_valid_d2 [3 : 0];
+    reg           clk_en_sqrt, sqrt_data_valid_d1, count_en;
+    reg           clk_en_div [3 : 0], clk_en_mac [3 : 0], div_dividend_valid_d1 [3 : 0];
     reg   [5 : 0] state;
     reg  [31 : 0] sqrt_data, div_divisor, div_dividend [3 : 0], mac_a [3 : 0], mac_b [3 : 0];
     reg  [63 : 0] mac_c [3 : 0];
@@ -512,7 +512,7 @@ module cholesky (
                     // State counter
                     // -------------
                     if (s_count == COL_N_LATENCY) begin
-                        s_count <= 8'b0000_0001;
+                        s_count <= 8'b0000_0000;
                     end else begin
                         s_count <= s_count + 8'b0000_0001;
                     end
@@ -544,23 +544,18 @@ module cholesky (
      */
     always @(posedge clk) begin
         sqrt_data_valid_d1 <= clk_en_sqrt;
-        sqrt_data_valid_d2 <= sqrt_data_valid_d1;
 
         div_dividend_valid_d1[0] <= clk_en_div[0];
-        div_dividend_valid_d2[0] <= div_dividend_valid_d1[0];
         div_dividend_valid_d1[1] <= clk_en_div[1];
-        div_dividend_valid_d2[1] <= div_dividend_valid_d1[1];
         div_dividend_valid_d1[2] <= clk_en_div[2];
-        div_dividend_valid_d2[2] <= div_dividend_valid_d1[2];
         div_dividend_valid_d1[3] <= clk_en_div[3];
-        div_dividend_valid_d2[3] <= div_dividend_valid_d1[3];
     end
 
-    assign sqrt_data_valid = sqrt_data_valid_d1 & ~sqrt_data_valid_d2;
-    assign div_dividend_valid[0] = div_dividend_valid_d1[0] & ~div_dividend_valid_d2[0];
-    assign div_dividend_valid[1] = div_dividend_valid_d1[1] & ~div_dividend_valid_d2[1];
-    assign div_dividend_valid[2] = div_dividend_valid_d1[2] & ~div_dividend_valid_d2[2];
-    assign div_dividend_valid[3] = div_dividend_valid_d1[3] & ~div_dividend_valid_d2[3];
+    assign sqrt_data_valid = ~sqrt_data_valid_d1 & clk_en_sqrt;
+    assign div_dividend_valid[0] = ~div_dividend_valid_d1[0] & clk_en_div[0];
+    assign div_dividend_valid[1] = ~div_dividend_valid_d1[1] & clk_en_div[1];
+    assign div_dividend_valid[2] = ~div_dividend_valid_d1[2] & clk_en_div[2];
+    assign div_dividend_valid[3] = ~div_dividend_valid_d1[3] & clk_en_div[3];
 
     // Divisor input is valid anytime a dividend input is valid.
     assign div_divisor_valid = div_dividend_valid[0] | div_dividend_valid[1] | div_dividend_valid[2] | div_dividend_valid[3];
