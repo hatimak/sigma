@@ -54,8 +54,8 @@ module cholesky (
     wire          inv_sqrt_data_valid, inv_sqrt_out_valid;
     wire [31 : 0] mult_out [3 : 0], inv_sqrt_out, sqrt_out;
     wire [63 : 0] mac_p [3 : 0];
-    reg           clk_en_inv_sqrt, inv_sqrt_data_valid_d1, clk_en_sqrt;
-    reg           clk_en_mult [3 : 0], clk_en_mac [3 : 0];
+    reg           clk_en_inv_sqrt, clk_en_inv_sqrt_d1, clk_en_sqrt;
+    reg           clk_en_mult [3 : 0];
     reg   [5 : 0] state;
     reg  [31 : 0] inv_sqrt_data, mult_a, mult_b [3 : 0], mac_a [3 : 0], mac_b [3 : 0];
     reg  [63 : 0] mac_c [3 : 0];
@@ -74,10 +74,6 @@ module cholesky (
             clk_en_mult[1] <= 1'b0;
             clk_en_mult[2] <= 1'b0;
             clk_en_mult[3] <= 1'b0;
-            clk_en_mac[0] <= 1'b0;
-            clk_en_mac[1] <= 1'b0;
-            clk_en_mac[2] <= 1'b0;
-            clk_en_mac[3] <= 1'b0;
 
             inv_sqrt_data <= {32{1'b0}};
             mult_a <= {32{1'b0}};
@@ -169,12 +165,7 @@ module cholesky (
                         clk_en_mult[1] <= 1'b0;
                         clk_en_mult[2] <= 1'b0;
                         clk_en_mult[3] <= 1'b0;
-                        clk_en_mac[0] <= 1'b1;
-                        clk_en_mac[1] <= 1'b1;
-                        clk_en_mac[2] <= 1'b1;
-                        clk_en_mac[3] <= 1'b1;
                     end else if (s_count == COL_I_LATENCY) begin
-                        clk_en_mac[0] <= 1'b0;
                         clk_en_inv_sqrt <= 1'b1;
                         clk_en_sqrt <= 1'b1;
                     end
@@ -240,13 +231,7 @@ module cholesky (
 
                     // Clock enable signals
                     // --------------------
-                    if (s_count == 1 + MAC_SAMPLE) begin
-                        clk_en_mac[3] <= 1'b0;
-                    end else if (s_count == 1 + 2 * MAC_SAMPLE) begin
-                        clk_en_mac[2] <= 1'b0;
-                    end else if (s_count == 1 + 3 * MAC_SAMPLE) begin
-                        clk_en_mac[1] <= 1'b0;
-                    end else if (s_count == SQRT_SAMPLE) begin
+                    if (s_count == SQRT_SAMPLE) begin
                         clk_en_sqrt <= 1'b0;
                     end else if (s_count == INV_SQRT_SAMPLE) begin
                         clk_en_mult[1] <= 1'b1;
@@ -258,12 +243,7 @@ module cholesky (
                         clk_en_mult[1] <= 1'b0;
                         clk_en_mult[2] <= 1'b0;
                         clk_en_mult[3] <= 1'b0;
-
-                        clk_en_mac[1] <= 1'b1;
-                        clk_en_mac[2] <= 1'b1;
-                        clk_en_mac[3] <= 1'b1;
                     end else if (s_count == COL_I_LATENCY) begin
-                        clk_en_mac[1] <= 1'b0;
                         clk_en_inv_sqrt <= 1'b1;
                         clk_en_sqrt <= 1'b1;
                     end
@@ -363,11 +343,7 @@ module cholesky (
 
                     // Clock enable signals
                     // --------------------
-                    if (s_count == 1 + MAC_SAMPLE) begin
-                        clk_en_mac[3] <= 1'b0;
-                    end else if (s_count == 1 + 2 * MAC_SAMPLE) begin
-                        clk_en_mac[2] <= 1'b0;
-                    end else if (s_count == SQRT_SAMPLE) begin
+                    if (s_count == SQRT_SAMPLE) begin
                         clk_en_sqrt <= 1'b0;
                     end else if (s_count == INV_SQRT_SAMPLE) begin
                         clk_en_mult[2] <= 1'b1;
@@ -377,11 +353,7 @@ module cholesky (
                     end else if (s_count == INV_SQRT_SAMPLE + MULT_SAMPLE) begin
                         clk_en_mult[2] <= 1'b0;
                         clk_en_mult[3] <= 1'b0;
-
-                        clk_en_mac[2] <= 1'b1;
-                        clk_en_mac[3] <= 1'b1;
                     end else if (s_count == COL_I_LATENCY) begin
-                        clk_en_mac[2] <= 1'b0;
                         clk_en_inv_sqrt <= 1'b1;
                         clk_en_sqrt <= 1'b1;
                     end
@@ -460,9 +432,7 @@ module cholesky (
 
                     // Clock enable signals
                     // --------------------
-                    if (s_count == 1 + MAC_SAMPLE) begin
-                        clk_en_mac[3] <= 1'b0;
-                    end else if (s_count == SQRT_SAMPLE) begin
+                    if (s_count == SQRT_SAMPLE) begin
                         clk_en_sqrt <= 1'b0;
                     end else if (s_count == INV_SQRT_SAMPLE) begin
                         clk_en_mult[3] <= 1'b1;
@@ -470,10 +440,7 @@ module cholesky (
                         clk_en_inv_sqrt <= 1'b0;
                     end else if (s_count == INV_SQRT_SAMPLE + MULT_SAMPLE) begin
                         clk_en_mult[3] <= 1'b0;
-
-                        clk_en_mac[3] <= 1'b1;
                     end else if (s_count == COL_I_LATENCY) begin
-                        clk_en_mac[3] <= 1'b0;
                         clk_en_sqrt <= 1'b1;
                     end
 
@@ -558,9 +525,9 @@ module cholesky (
      * ----------------------
      */
     always @(posedge clk) begin
-        inv_sqrt_data_valid_d1 <= clk_en_inv_sqrt;
+        clk_en_inv_sqrt_d1 <= clk_en_inv_sqrt;
     end
-    assign inv_sqrt_data_valid = ~inv_sqrt_data_valid_d1 & clk_en_inv_sqrt;
+    assign inv_sqrt_data_valid = ~clk_en_inv_sqrt_d1 & clk_en_inv_sqrt;
 
 // ================================================================================
     /* Square root module
@@ -583,12 +550,15 @@ module cholesky (
      * Latency is INV_INV_SQRT_SAMPLE
      */
 
+    // TODO: rst signal of inv_sqrt_0 is asserted as part of a "hack" to put the 
+    // module in a sane state after every use. This is a problem with the 
+    // chol_inv_sqrt module definition.
     chol_inv_sqrt #(
         .ITER       (INV_SQRT_ITER)
     ) inv_sqrt_0 (
         .clk        (clk),
         .clken      (clk_en_inv_sqrt),
-        .rst        (rst | ~clk_en_inv_sqrt),
+        .rst        (rst | (~clk_en_inv_sqrt & clk_en_inv_sqrt_d1)),
         .data_valid (inv_sqrt_data_valid),
         .data       (inv_sqrt_data),
         .out        (inv_sqrt_out),
@@ -601,37 +571,18 @@ module cholesky (
      * Latency is MULT_SAMPLE
      */
 
-    cholesky_ip_mult mult_0 (
-        .CLK (clk),
-        .A   (mult_a),
-        .B   (mult_b[0]),
-        .CE  (clk_en_mult[0]),
-        .P   (mult_out[0])
-    );
-
-    cholesky_ip_mult mult_1 (
-        .CLK (clk),
-        .A   (mult_a),
-        .B   (mult_b[1]),
-        .CE  (clk_en_mult[1]),
-        .P   (mult_out[1])
-    );
-
-    cholesky_ip_mult mult_2 (
-        .CLK (clk),
-        .A   (mult_a),
-        .B   (mult_b[2]),
-        .CE  (clk_en_mult[2]),
-        .P   (mult_out[2])
-    );
-
-    cholesky_ip_mult mult_3 (
-        .CLK (clk),
-        .A   (mult_a),
-        .B   (mult_b[3]),
-        .CE  (clk_en_mult[3]),
-        .P   (mult_out[3])
-    );
+    genvar i;
+    generate
+        for (i = 0; i <= 3; i = i + 1) begin: MULT_BLOCK
+            cholesky_ip_mult mult (
+                .CLK (clk),
+                .A   (mult_a),
+                .B   (mult_b[i]),
+                .CE  (clk_en_mult[i]),
+                .P   (mult_out[i])
+            );
+        end
+    endgenerate
 
 // ================================================================================
     /* N - 1 Multiply-ACcumulate (MAC) modules
@@ -639,44 +590,19 @@ module cholesky (
      * Latency is MAC_SAMPLE
      */
 
-    chol_mac mac_0 (
-        .clk   (clk),
-        .clken (clk_en_mac[0]),
-        .rst   (rst),
-        .a     (mac_a[0]),
-        .b     (mac_a[0]),
-        .c     (mac_c[0]),
-        .out   (mac_p[0])
-    );
-
-    chol_mac mac_1 (
-        .clk   (clk),
-        .clken (clk_en_mac[1]),
-        .rst   (rst),
-        .a     (mac_a[1]),
-        .b     (mac_b[1]),
-        .c     (mac_c[1]),
-        .out   (mac_p[1])
-    );
-
-    chol_mac mac_2 (
-        .clk   (clk),
-        .clken (clk_en_mac[2]),
-        .rst   (rst),
-        .a     (mac_a[2]),
-        .b     (mac_b[2]),
-        .c     (mac_c[2]),
-        .out   (mac_p[2])
-    );
-
-    chol_mac mac_3 (
-        .clk   (clk),
-        .clken (clk_en_mac[3]),
-        .rst   (rst),
-        .a     (mac_a[3]),
-        .b     (mac_b[3]),
-        .c     (mac_c[3]),
-        .out   (mac_p[3])
-    );
+    genvar j;
+    generate
+        for (j = 0; j <= 3; j = j + 1) begin: MAC_BLOCK
+            chol_mac mac (
+                .clk   (clk),
+                .clken (1'b1),
+                .rst   (rst),
+                .a     (mac_a[j]),
+                .b     (mac_b[j]),
+                .c     (mac_c[j]),
+                .out   (mac_p[j])
+            );
+        end
+    endgenerate
 
 endmodule
