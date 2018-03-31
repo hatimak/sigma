@@ -31,7 +31,7 @@ module tb_inv_sqrt ();
         #43;
         data_valid = 1'b0;
         #1000;
-        data = 32'h0064_8000; // 100.5
+        data = 32'h00c1_3f9c; // 193.2484741210938
         #18;
         data_valid = 1'b1;
         #26;

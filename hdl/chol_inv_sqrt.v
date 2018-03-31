@@ -3,14 +3,14 @@
 module chol_inv_sqrt #(
     parameter ITER = 1
     ) (
-    input wire        clk,
-    input wire        clken,
-    input wire        rst,
-    input wire        data_valid,
-    input wire [31:0] data,
+    input wire         clk,
+    input wire         clken,
+    input wire         rst,
+    input wire         data_valid,
+    input wire  [31:0] data,
 
-    output reg [31:0] out,
-    output reg        out_valid
+    output reg  [31:0] out,
+    output wire        out_valid
     );
 
     localparam S_IDLE           = 7'b000_0001;
@@ -25,14 +25,16 @@ module chol_inv_sqrt #(
     localparam MAGIC_NUMBER     = 32'h5f3759df;
     localparam THREE_HALFS      = 32'h0001_8000;
 
+    localparam FLT2FIX_LATENCY  = 9;
+    localparam FIX2FLT_LATENCY  = 9;
     localparam SUB_LATENCY      = 3;
     localparam MUL_LATENCY      = 7;
 
-    wire          valid_fixed_to_float, fixed_to_float_valid, valid_float_to_fixed, float_to_fixed_valid;
+    wire          valid_fixed_to_float, valid_float_to_fixed;
     wire [31 : 0] out_fixed_to_float, out_sub, out_float_to_fixed, out_mult_0, out_mult_1, out_mult_2;
     reg           clken_fixed_to_float, valid_fixed_to_float_d1, valid_fixed_to_float_d2, clken_sub, 
                   clken_float_to_fixed, valid_float_to_fixed_d1, valid_float_to_fixed_d2,
-                  clken_mult_0, clken_mult_1, clken_mult_2;
+                  clken_mult_0, clken_mult_1, clken_mult_2, out_valid_d0, out_valid_d1;
     reg   [3 : 0] s_count, s_iter;
     reg   [6 : 0] state;
     reg  [31 : 0] a_sub, b_sub, a_mult_1, b_mult_1;
@@ -55,7 +57,7 @@ module chol_inv_sqrt #(
             clken_mult_2 <= 1'b0;
 
             out <= 32'h0000_0000;
-            out_valid <= 1'b0;
+            out_valid_d0 <= 1'b0;
         end else begin
             case (state)
                 S_IDLE: begin
@@ -74,7 +76,7 @@ module chol_inv_sqrt #(
                     end
 
                     if (data_valid) begin
-                        out_valid <= 1'b0;
+                        out_valid_d0 <= 1'b0;
                         s_iter <= 0;
                         // Setup signals to fixed-to-float module
                         clken_fixed_to_float <= 1'b1;
@@ -82,13 +84,20 @@ module chol_inv_sqrt #(
                 end
                 S_FIXED_TO_FLOAT: begin
                     // Determine next state
-                    if (fixed_to_float_valid) begin
+                    if (s_count == FIX2FLT_LATENCY) begin
                         state <= S_MAGIC;
                     end else begin
                         state <= S_FIXED_TO_FLOAT;
                     end
 
-                    if (fixed_to_float_valid) begin
+                    // State counter
+                    if (s_count == FIX2FLT_LATENCY) begin
+                        s_count <= 1;
+                    end else begin
+                        s_count <= s_count + 1;
+                    end
+
+                    if (s_count == FIX2FLT_LATENCY) begin
                         clken_fixed_to_float <= 1'b0;
 
                         // Setup signals to subtracter module
@@ -117,17 +126,24 @@ module chol_inv_sqrt #(
 
                         // Setup signals to float-to-fixed module
                         clken_float_to_fixed <= 1'b1;
-                    end 
+                    end
                 end
                 S_FLOAT_TO_FIXED: begin
                     // Determine next state
-                    if (float_to_fixed_valid) begin
+                    if (s_count == FLT2FIX_LATENCY) begin
                         state <= S_MUL_1;
                     end else begin
                         state <= S_FLOAT_TO_FIXED;
                     end
-    
-                    if (float_to_fixed_valid) begin
+
+                    // State counter
+                    if (s_count == FLT2FIX_LATENCY) begin
+                        s_count <= 1;
+                    end else begin
+                        s_count <= s_count + 1;
+                    end
+
+                    if (s_count == FLT2FIX_LATENCY) begin
                         clken_float_to_fixed <= 1'b0;
                         out <= out_float_to_fixed;
 
@@ -212,7 +228,7 @@ module chol_inv_sqrt #(
                         if (s_iter == ITER - 1) begin
                             // Computation done, extract result and raise valid
                             out <= out_sub;
-                            out_valid <= 1'b1;
+                            out_valid_d0 <= 1'b1;
                         end else begin
                             s_iter <= s_iter + 1;
                             // Setup signals to multiplier modules
@@ -233,9 +249,12 @@ module chol_inv_sqrt #(
         valid_fixed_to_float_d2 <= valid_fixed_to_float_d1;
         valid_float_to_fixed_d1 <= clken_float_to_fixed;
         valid_float_to_fixed_d2 <= valid_float_to_fixed_d1;
+
+        out_valid_d1 <= out_valid_d0;
     end
     assign valid_fixed_to_float = ~valid_fixed_to_float_d2 & clken_fixed_to_float;
     assign valid_float_to_fixed = ~valid_float_to_fixed_d2 & clken_float_to_fixed;
+    assign out_valid = ~out_valid_d1 & out_valid_d0;
 
     cholesky_ip_fixed_to_float fixed_to_float_0 (
         .aclk                 (clk),
@@ -244,7 +263,7 @@ module chol_inv_sqrt #(
         .s_axis_a_tvalid      (valid_fixed_to_float),
         .s_axis_a_tready      (), // Not connected
         .s_axis_a_tdata       (data),
-        .m_axis_result_tvalid (fixed_to_float_valid),
+        .m_axis_result_tvalid (), // Not connected, know beforehand when to sample
         .m_axis_result_tdata  (out_fixed_to_float)
     );
 
@@ -263,7 +282,7 @@ module chol_inv_sqrt #(
         .s_axis_a_tvalid      (valid_float_to_fixed),
         .s_axis_a_tready      (), // Not connected
         .s_axis_a_tdata       (out_sub),
-        .m_axis_result_tvalid (float_to_fixed_valid),
+        .m_axis_result_tvalid (), // Not connected, know beforehand when to sample
         .m_axis_result_tdata  (out_float_to_fixed)
     );
 
