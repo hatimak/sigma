@@ -1,11 +1,11 @@
 `timescale 1ns / 1ps
 
-module tb_cholesky();
+module tb_cholesky ();
 
-    reg            clk, clk_en, rst, A_valid;
-    reg  [479 : 0] A;
-    wire [479 : 0] L;
-    wire           L_valid;
+    reg           clk, clk_en, rst, A_valid;
+    reg [479 : 0] A;
+    wire          L_valid;
+    wire [31 : 0] L_11, L_21, L_22, L_31, L_32, L_33, L_41, L_42, L_43, L_44, L_51, L_52, L_53, L_54, L_55;
 
     cholesky uut (
         .clk     (clk),
@@ -14,9 +14,9 @@ module tb_cholesky();
         .A       (A),
         .A_valid (A_valid),
 
-        .L       (L),
+        .L       ({L_55, L_54, L_53, L_52, L_51, L_44, L_43, L_42, L_41, L_33, L_32, L_31, L_22, L_21, L_11}),
         .L_valid (L_valid)
-        );
+    );
 
     initial begin
         #200; // Global Set/Reset (GSR) is in effect for the first 100ns so apply stimulus afterwards
