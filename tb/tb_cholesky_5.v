@@ -1,13 +1,13 @@
 `timescale 1ns / 1ps
 
-module tb_cholesky ();
+module tb_cholesky_5 ();
 
     reg           clk, clk_en, rst, A_valid;
     reg [479 : 0] A;
     wire          L_valid;
     wire [31 : 0] L_11, L_21, L_22, L_31, L_32, L_33, L_41, L_42, L_43, L_44, L_51, L_52, L_53, L_54, L_55;
 
-    cholesky uut (
+    cholesky_5 uut (
         .clk     (clk),
         .clk_en  (clk_en),
         .rst     (rst),

@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 
-module cholesky (
+module cholesky_5 (
     input wire           clk,
-    input wire           clk_en,
+    input wire           clk_en, // TODO: Does not handle this right now, but kept around for future use.
     input wire           rst,
     input wire [479 : 0] A,
     input wire           A_valid,
@@ -13,6 +13,7 @@ module cholesky (
 
     localparam N             = 5; // Size of the matrix.
     localparam COUNT_WIDTH   = 8; // Enough bits to hold the maximum number of cycles a column can take.
+    localparam STATE_WIDTH   = 6;
     localparam INV_SQRT_ITER = 1;
 
     // Number of clock cycles to wait for sampling output after input valid signal.
@@ -21,7 +22,7 @@ module cholesky (
     localparam MAC_SAMPLE      = 10;
     localparam SQRT_SAMPLE     = 27;
 
-    /* Computation of column I of Cholesky factor takes INV_SQRT_SAMPLE + MULT_SAMPLE + MAC_SAMPLE cycles, for I = 2..N-1 
+    /* Computation of column I of Cholesky factor takes INV_SQRT_SAMPLE + MULT_SAMPLE + MAC_SAMPLE cycles, for I = 1..N-1 
      * Computation of column N of Cholesky factor takes INV_SQRT_SAMPLE cycles
      */
     localparam COL_I_LATENCY = INV_SQRT_SAMPLE + MULT_SAMPLE + MAC_SAMPLE;
@@ -51,16 +52,16 @@ module cholesky (
                   A_54 = A[447 : 416],
                   A_55 = A[479 : 448];
 
-    wire          inv_sqrt_data_valid, inv_sqrt_out_valid;
+    wire          inv_sqrt_data_valid;
     wire [31 : 0] mult_out [3 : 0], inv_sqrt_out, sqrt_out;
     wire [63 : 0] mac_p [3 : 0];
     reg           clk_en_inv_sqrt, clk_en_inv_sqrt_d1, clk_en_sqrt;
     reg           clk_en_mult [3 : 0];
-    reg   [5 : 0] state;
     reg  [31 : 0] inv_sqrt_data, mult_a, mult_b [3 : 0], mac_a [3 : 0], mac_b [3 : 0];
     reg  [63 : 0] mac_c [3 : 0];
     reg  [63 : 0] run_sum [9 : 0];
 
+    reg [STATE_WIDTH-1 : 0] state;
     reg [COUNT_WIDTH-1 : 0] s_count;
 
     always @(posedge clk) begin
@@ -158,7 +159,6 @@ module cholesky (
                         clk_en_mult[1] <= 1'b1;
                         clk_en_mult[2] <= 1'b1;
                         clk_en_mult[3] <= 1'b1;
-
                         clk_en_inv_sqrt <= 1'b0;
                     end else if (s_count == INV_SQRT_SAMPLE + MULT_SAMPLE) begin
                         clk_en_mult[0] <= 1'b0;
@@ -237,7 +237,6 @@ module cholesky (
                         clk_en_mult[1] <= 1'b1;
                         clk_en_mult[2] <= 1'b1;
                         clk_en_mult[3] <= 1'b1;
-
                         clk_en_inv_sqrt <= 1'b0;
                     end else if (s_count == INV_SQRT_SAMPLE + MULT_SAMPLE) begin
                         clk_en_mult[1] <= 1'b0;
@@ -348,7 +347,6 @@ module cholesky (
                     end else if (s_count == INV_SQRT_SAMPLE) begin
                         clk_en_mult[2] <= 1'b1;
                         clk_en_mult[3] <= 1'b1;
-
                         clk_en_inv_sqrt <= 1'b0;
                     end else if (s_count == INV_SQRT_SAMPLE + MULT_SAMPLE) begin
                         clk_en_mult[2] <= 1'b0;
@@ -436,7 +434,6 @@ module cholesky (
                         clk_en_sqrt <= 1'b0;
                     end else if (s_count == INV_SQRT_SAMPLE) begin
                         clk_en_mult[3] <= 1'b1;
-
                         clk_en_inv_sqrt <= 1'b0;
                     end else if (s_count == INV_SQRT_SAMPLE + MULT_SAMPLE) begin
                         clk_en_mult[3] <= 1'b0;
@@ -562,7 +559,7 @@ module cholesky (
         .data_valid (inv_sqrt_data_valid),
         .data       (inv_sqrt_data),
         .out        (inv_sqrt_out),
-        .out_valid  (inv_sqrt_out_valid)
+        .out_valid  () // Not connected since we know beforehand when to sample output
     );
 
 // ================================================================================
@@ -573,7 +570,7 @@ module cholesky (
 
     genvar i;
     generate
-        for (i = 0; i <= 3; i = i + 1) begin: MULT_BLOCK
+        for (i = 0; i < 4; i = i + 1) begin: MULT_BLOCK
             cholesky_ip_mult mult (
                 .CLK (clk),
                 .A   (mult_a),
@@ -592,7 +589,7 @@ module cholesky (
 
     genvar j;
     generate
-        for (j = 0; j <= 3; j = j + 1) begin: MAC_BLOCK
+        for (j = 0; j < 4; j = j + 1) begin: MAC_BLOCK
             chol_mac mac (
                 .clk   (clk),
                 .clken (1'b1),
