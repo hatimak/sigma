@@ -206,8 +206,9 @@ module cholesky_5 (
 
                     // Extract elements of the lower Cholesky factor
                     // ---------------------------------------------
-                    if (s_count == COL_I_LATENCY) begin
+                    if (s_count == SQRT_SAMPLE) begin
                         L[31 : 0]    <= sqrt_out;    // L_11
+                    end else if (s_count == INV_SQRT_SAMPLE + MULT_SAMPLE) begin
                         L[63 : 32]   <= mult_out[0]; // L_21
                         L[127 : 96]  <= mult_out[1]; // L_31
                         L[223 : 192] <= mult_out[2]; // L_41
@@ -318,8 +319,9 @@ module cholesky_5 (
 
                     // Extract elements of the lower Cholesky factor
                     // ---------------------------------------------
-                    if (s_count == COL_I_LATENCY) begin
+                    if (s_count == SQRT_SAMPLE) begin
                         L[95 : 64]   <= sqrt_out;  // L_22
+                    end else if (s_count == INV_SQRT_SAMPLE + MULT_SAMPLE) begin
                         L[159 : 128] <= mult_out[1]; // L_32
                         L[255 : 224] <= mult_out[2]; // L_42
                         L[383 : 352] <= mult_out[3]; // L_52
@@ -407,8 +409,9 @@ module cholesky_5 (
 
                     // Extract elements of the lower Cholesky factor
                     // ---------------------------------------------
-                    if (s_count == COL_I_LATENCY) begin
+                    if (s_count == SQRT_SAMPLE) begin
                         L[191 : 160] <= sqrt_out;  // L_33
+                    end else if (s_count == INV_SQRT_SAMPLE + MULT_SAMPLE) begin
                         L[287 : 256] <= mult_out[2]; // L_43
                         L[415 : 384] <= mult_out[3]; // L_53
                     end
@@ -476,8 +479,9 @@ module cholesky_5 (
 
                     // Extract elements of the lower Cholesky factor
                     // ---------------------------------------------
-                    if (s_count == COL_I_LATENCY) begin
+                    if (s_count == SQRT_SAMPLE) begin
                         L[319 : 288] <= sqrt_out;  // L_44
+                    end else if (s_count == INV_SQRT_SAMPLE + MULT_SAMPLE) begin
                         L[447 : 416] <= mult_out[3]; // L_54
                     end
                 end
@@ -509,7 +513,7 @@ module cholesky_5 (
 
                     // Extract elements of the lower Cholesky factor
                     // ---------------------------------------------
-                    if (s_count == COL_N_LATENCY) begin
+                    if (s_count == SQRT_SAMPLE) begin
                         L[479 : 448] <= sqrt_out;  // L_55
                         L_valid <= 1'b1;
                     end

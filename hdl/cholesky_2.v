@@ -37,7 +37,7 @@ module cholesky_2 (
                   A_21 = A[63 : 32],
                   A_22 = A[95 : 64];
 
-    wire          inv_sqrt_data_valid, inv_sqrt_out_valid;
+    wire          inv_sqrt_data_valid;
     wire [31 : 0] mult_out [0 : 0], inv_sqrt_out, sqrt_out;
     wire [63 : 0] mac_p [0 : 0];
     reg           clk_en_inv_sqrt, clk_en_inv_sqrt_d1, clk_en_sqrt;
@@ -145,8 +145,9 @@ module cholesky_2 (
 
                     // Extract elements of the lower Cholesky factor
                     // ---------------------------------------------
-                    if (s_count == COL_I_LATENCY) begin
+                    if (s_count == SQRT_SAMPLE) begin
                         L[31 : 0]    <= sqrt_out;    // L_11
+                    end else if (s_count == INV_SQRT_SAMPLE + MULT_SAMPLE) begin
                         L[63 : 32]   <= mult_out[0]; // L_21
                     end
                 end
@@ -178,7 +179,7 @@ module cholesky_2 (
 
                     // Extract elements of the lower Cholesky factor
                     // ---------------------------------------------
-                    if (s_count == COL_N_LATENCY) begin
+                    if (s_count == SQRT_SAMPLE) begin
                         L[95 : 64] <= sqrt_out;  // L_22
                         L_valid <= 1'b1;
                     end
@@ -228,7 +229,7 @@ module cholesky_2 (
         .data_valid (inv_sqrt_data_valid),
         .data       (inv_sqrt_data),
         .out        (inv_sqrt_out),
-        .out_valid  (inv_sqrt_out_valid)
+        .out_valid  () // Not connected since we know beforehand when to sample output
     );
 
 // ================================================================================
