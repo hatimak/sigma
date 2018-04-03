@@ -267,6 +267,7 @@ module cholesky_2 (
                 .a     (mac_a[j]),
                 .b     (mac_b[j]),
                 .c     (mac_c[j]),
+                .sub   (1'b1),
                 .out   (mac_p[j])
             );
         end
