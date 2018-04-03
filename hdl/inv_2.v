@@ -75,6 +75,8 @@ module inv_2 (
                     // Setup signals prior to commencing operations
                     // --------------------------------------------
                     if (A_valid) begin
+                        Z_valid <= 0;
+
                         inv_chol_clk_en <= 1'b1;
                     end
                 end
@@ -91,6 +93,12 @@ module inv_2 (
                         s_count <= 1;
                     end else begin
                         s_count <= s_count + 1;
+                    end
+
+                    // Clock enable signals
+                    // --------------------
+                    if (s_count == INV_CHOL_SAMPLE) begin
+                        inv_chol_clk_en <= 1'b0;
                     end
 
                     // Setup input signals
@@ -126,7 +134,7 @@ module inv_2 (
                     // Clock enable signals
                     // --------------------
                     if (s_count == S_DIA_1_LATENCY) begin
-                        clk_en_mult[0] <= 1'b1; 
+                        clk_en_mult[0] <= 1'b1;
                     end
 
                     // Setup input signals

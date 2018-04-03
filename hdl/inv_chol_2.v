@@ -21,7 +21,7 @@ module inv_chol_2 (
     localparam N             = 2; // Size of the matrix.
     localparam COUNT_WIDTH   = 8; // Enough bits to hold the maximum number of cycles a column can take.
     localparam STATE_WIDTH   = 3;
-    localparam INV_SQRT_ITER = 2;
+    localparam INV_SQRT_ITER = 1;
 
     // Number of clock cycles to wait for sampling output after input valid signal.
     localparam MULT_SAMPLE     = 7;
