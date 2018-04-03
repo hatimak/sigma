@@ -19,13 +19,13 @@ module inv_chol_2 (
     );
 
     localparam N             = 2; // Size of the matrix.
-    localparam COUNT_WIDTH   = 6; // Enough bits to hold the maximum number of cycles a column can take.
+    localparam COUNT_WIDTH   = 8; // Enough bits to hold the maximum number of cycles a column can take.
     localparam STATE_WIDTH   = 3;
-    localparam INV_SQRT_ITER = 1;
+    localparam INV_SQRT_ITER = 2;
 
     // Number of clock cycles to wait for sampling output after input valid signal.
     localparam MULT_SAMPLE     = 7;
-    localparam INV_SQRT_SAMPLE = 40; // This must be changed according to INV_SQRT_ITER, refer chol_inv_sqrt module definition.
+    localparam INV_SQRT_SAMPLE = 39 + ((INV_SQRT_ITER - 1) * 18) + 1;
     localparam MAC_SAMPLE      = 10;
 
     /* Computation of column I of "Inverse-Cholesky" matrix takes INV_SQRT_SAMPLE + MULT_SAMPLE + MAC_SAMPLE cycles, for I = 1..N-1 

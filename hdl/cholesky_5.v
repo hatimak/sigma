@@ -18,7 +18,7 @@ module cholesky_5 (
 
     // Number of clock cycles to wait for sampling output after input valid signal.
     localparam MULT_SAMPLE     = 7;
-    localparam INV_SQRT_SAMPLE = 40; // This must be changed according to INV_SQRT_ITER, refer chol_inv_sqrt module definition.
+    localparam INV_SQRT_SAMPLE = 39 + ((INV_SQRT_ITER - 1) * 18) + 1;
     localparam MAC_SAMPLE      = 10;
     localparam SQRT_SAMPLE     = 27;
 
@@ -54,12 +54,10 @@ module cholesky_5 (
 
     wire          inv_sqrt_data_valid;
     wire [31 : 0] mult_out [3 : 0], inv_sqrt_out, sqrt_out;
-    wire [63 : 0] mac_p [3 : 0];
-    reg           clk_en_inv_sqrt, clk_en_inv_sqrt_d1, clk_en_sqrt;
-    reg           clk_en_mult [3 : 0];
+    wire [63 : 0] mac_out [3 : 0];
+    reg           clk_en_inv_sqrt, clk_en_inv_sqrt_d1, clk_en_sqrt, clk_en_mult [3 : 0];
     reg  [31 : 0] inv_sqrt_data, mult_a, mult_b [3 : 0], mac_a [3 : 0], mac_b [3 : 0];
-    reg  [63 : 0] mac_c [3 : 0];
-    reg  [63 : 0] run_sum [9 : 0];
+    reg  [63 : 0] mac_c [3 : 0], run_sum [9 : 0];
 
     reg [STATE_WIDTH-1 : 0] state;
     reg [COUNT_WIDTH-1 : 0] s_count;
@@ -192,16 +190,16 @@ module cholesky_5 (
                         mac_b[3] <= mult_out[3];
                         mac_c[3] <= A_52[31] ? {16'hffff, A_52, 16'h0000} : {16'h0000, A_52, 16'h0000};
                     end else if (s_count == COL_I_LATENCY) begin
-                        inv_sqrt_data <= mac_p[0][47 : 16];
+                        inv_sqrt_data <= mac_out[0][47 : 16];
                     end
 
                     // Extract running sum from MAC units
                     // ----------------------------------
                     if (s_count == COL_I_LATENCY) begin
-                        run_sum[0] <= mac_p[0]; // L_22
-                        run_sum[1] <= mac_p[1]; // L_32
-                        run_sum[2] <= mac_p[2]; // L_42
-                        run_sum[3] <= mac_p[3]; // L_52
+                        run_sum[0] <= mac_out[0]; // L_22
+                        run_sum[1] <= mac_out[1]; // L_32
+                        run_sum[2] <= mac_out[2]; // L_42
+                        run_sum[3] <= mac_out[3]; // L_52
                     end
 
                     // Extract elements of the lower Cholesky factor
@@ -268,18 +266,18 @@ module cholesky_5 (
                         mac_b[2] <= mult_out[3];
                         mac_c[2] <= A_54[31] ? {16'hffff, A_54, 16'h0000} : {16'h0000, A_54, 16'h0000};
 
-                        run_sum[4] <= mac_p[1]; // L_33
-                        run_sum[5] <= mac_p[2]; // L_43
-                        run_sum[6] <= mac_p[3]; // L_53
+                        run_sum[4] <= mac_out[1]; // L_33
+                        run_sum[5] <= mac_out[2]; // L_43
+                        run_sum[6] <= mac_out[3]; // L_53
                     end else if (s_count == 1 + 2 * MAC_SAMPLE) begin
                         mac_a[1] <= mult_out[3];
                         mac_b[1] <= mult_out[3];
                         mac_c[1] <= A_55[31] ? {16'hffff, A_55, 16'h0000} : {16'h0000, A_55, 16'h0000};
 
-                        run_sum[7] <= mac_p[1]; // L_44
-                        run_sum[8] <= mac_p[2]; // L_54
+                        run_sum[7] <= mac_out[1]; // L_44
+                        run_sum[8] <= mac_out[2]; // L_54
                     end else if (s_count == 1 + 3 * MAC_SAMPLE) begin
-                        run_sum[9] <= mac_p[1]; // L_55
+                        run_sum[9] <= mac_out[1]; // L_55
                     end
 
                     // Data input signals
@@ -300,7 +298,7 @@ module cholesky_5 (
                         mac_b[3] <= mult_out[3];
                         mac_c[3] <= run_sum[6]; // L_53
                     end else if (s_count == COL_I_LATENCY) begin // Set up inputs for first operation of next state.
-                        inv_sqrt_data <= mac_p[1][47 : 16];
+                        inv_sqrt_data <= mac_out[1][47 : 16];
 
                         // Reset running sum for columns that are computed.
                         run_sum[0] <= {64{1'b0}}; // L_22
@@ -312,9 +310,9 @@ module cholesky_5 (
                     // Extract running sum from MAC units
                     // ----------------------------------
                     if (s_count == COL_I_LATENCY) begin
-                        run_sum[4] <= mac_p[1]; // L_33
-                        run_sum[5] <= mac_p[2]; // L_43
-                        run_sum[6] <= mac_p[3]; // L_53
+                        run_sum[4] <= mac_out[1]; // L_33
+                        run_sum[5] <= mac_out[2]; // L_43
+                        run_sum[6] <= mac_out[3]; // L_53
                     end
 
                     // Extract elements of the lower Cholesky factor
@@ -372,10 +370,10 @@ module cholesky_5 (
                         mac_b[2] <= mult_out[3];
                         mac_c[2] <= run_sum[9]; // L_55
 
-                        run_sum[7] <= mac_p[2]; // L_44
-                        run_sum[8] <= mac_p[3]; // L_54
+                        run_sum[7] <= mac_out[2]; // L_44
+                        run_sum[8] <= mac_out[3]; // L_54
                     end else if (s_count == 1 + 2 * MAC_SAMPLE) begin
-                        run_sum[9] <= mac_p[2]; // L_55
+                        run_sum[9] <= mac_out[2]; // L_55
                     end
 
                     // Data input signals
@@ -392,7 +390,7 @@ module cholesky_5 (
                         mac_b[3] <= mult_out[3];
                         mac_c[3] <= run_sum[8]; // L_54
                     end else if (s_count == COL_I_LATENCY) begin // Set up inputs for first operation of next state.
-                        inv_sqrt_data <= mac_p[2][47 : 16];
+                        inv_sqrt_data <= mac_out[2][47 : 16];
 
                         // Reset running sum for columns that are computed.
                         run_sum[4] <= {64{1'b0}}; // L_33
@@ -403,8 +401,8 @@ module cholesky_5 (
                     // Extract running sum from MAC units
                     // ----------------------------------
                     if (s_count == COL_I_LATENCY) begin
-                        run_sum[7] <= mac_p[2]; // L_44
-                        run_sum[8] <= mac_p[3]; // L_54
+                        run_sum[7] <= mac_out[2]; // L_44
+                        run_sum[8] <= mac_out[3]; // L_54
                     end
 
                     // Extract elements of the lower Cholesky factor
@@ -451,7 +449,7 @@ module cholesky_5 (
                         mac_b[3] <= mult_out[3];
                         mac_c[3] <= run_sum[9]; // L_55
                     end else if (s_count == 1 + MAC_SAMPLE) begin
-                        run_sum[9] <= mac_p[3]; // L_55
+                        run_sum[9] <= mac_out[3]; // L_55
                     end
 
                     // Data input signals
@@ -464,7 +462,7 @@ module cholesky_5 (
                         mac_b[3] <= mult_out[3];
                         mac_c[3] <= run_sum[9]; // L_55
                     end else if (s_count == COL_I_LATENCY) begin // Set up inputs for first operation of next state.
-                        inv_sqrt_data <= mac_p[3][47 : 16];
+                        inv_sqrt_data <= mac_out[3][47 : 16];
 
                         // Reset running sum for columns that are computed.
                         run_sum[7] <= {64{1'b0}}; // L_44
@@ -474,7 +472,7 @@ module cholesky_5 (
                     // Extract running sum from MAC units
                     // ----------------------------------
                     if (s_count == COL_I_LATENCY) begin
-                        run_sum[9] <= mac_p[3][47 : 16]; // L_55
+                        run_sum[9] <= mac_out[3][47 : 16]; // L_55
                     end
 
                     // Extract elements of the lower Cholesky factor
@@ -601,7 +599,7 @@ module cholesky_5 (
                 .a     (mac_a[j]),
                 .b     (mac_b[j]),
                 .c     (mac_c[j]),
-                .out   (mac_p[j])
+                .out   (mac_out[j])
             );
         end
     endgenerate
