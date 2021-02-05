@@ -1,5 +1,7 @@
 /* Converts list of fixed point numbers (fix32_16) supplied as command line 
  * arguments in radix 16 (hex) to their corresponding decimal notation.
+ * 
+ * Copyright (C) 2018 Hatim Kanchwala <hatim@hatimak.me>
  */
 
 #include <stdio.h>
